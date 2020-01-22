@@ -31,17 +31,209 @@
 #endif
 
 // Comment out below line if you do not want a local user interface
-//#define USE_ROTARY  1
-//#define USE_DISPLAY 1
-
+#define USE_ROTARY  1
+#define USE_DISPLAY 1
+// #define USE_SSD1306 1
+#define USE_ILI9341 1
 // #define USE_SI4463  1
 
 #ifdef USE_SI4463
 #include "./Si446x.h" 
 #endif
 
+
+//------------------------------------------ Display ------------------------------------
+#ifdef USE_SSD1306
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+//#define SCREEN_WIDTH 128 // OLED display width, in pixels
+//#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+#define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
+Adafruit_SSD1306 tft(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+#define DISPLAY_POINTS 100
+#endif
+
+
+
+#ifdef USE_ILI9341
+#include "SPI.h"
+#include "Adafruit_GFX.h"
+#include "Adafruit_ILI9341.h"
+
+// For the Adafruit shield, these are the default.
+#define TFT_DC A5
+#define TFT_CS A4
+
+// Use hardware SPI (on Uno, #13, #12, #11) and the above for CS/DC
+Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
+
+#define DISPLAY_POINTS 300
+
+#endif
+
+//#define SCREEN_WIDTH 320 // OLED display width, in pixels
+//#define SCREEN_HEIGHT 240 // OLED display height, in pixels
+
 // The onboard led is blinked during serial transfer
 #define tinySA_led 13
+
+#ifndef DISPLAY_POINTS
+#define DISPLAY_POINTS 100
+#endif
+
+//--------------------- Generic display ---------------
+
+void clearDisplay()
+{
+#ifdef USE_SSD1306  
+  tft.clearDisplay();
+#endif
+#ifdef USE_ILI9341
+  tft.fillScreen(ILI9341_BLACK);
+#endif
+}
+
+void textWhite()
+{
+#ifdef USE_SSD1306  
+   tft.setTextSize(1);
+   tft.setTextColor(SSD1306_WHITE);        // Draw white text
+#define DISPLAY_WHITE SSD1306_WHITE
+#define DISPLAY_BLACK SSD1306_BLACK
+#define DISPLAY_GRAY SSD1306_WHITE
+#define DISPLAY_YELLOW SSD1306_WHITE
+#define DISPLAY_INVERSE SSD1306_INVERSE
+#endif
+#ifdef USE_ILI9341
+  tft.setTextColor(ILI9341_WHITE); 
+#define DISPLAY_WHITE ILI9341_WHITE
+#define DISPLAY_BLACK ILI9341_BLACK
+#define DISPLAY_GRAY ILI9341_WHITE
+#define DISPLAY_YELLOW ILI9341_YELLOW
+#define DISPLAY_INVERSE  ILI9341_WHITE
+#define SCREEN_WIDTH  tft.width()
+#endif
+}
+
+void sendDisplay()
+{
+#ifdef USE_SSD1306  
+   tft.display();
+#endif
+#ifdef USE_ILI9341
+    yield();
+#endif
+}
+
+//---------------- Drawing ------------------
+
+#ifdef USE_ILI9341
+
+const int dX = 30 ;
+const int dY = 24 ;
+const int oX = 20 ;
+const int oY = 24 ;
+const int DOTS = 10 * dX - 2 ;  // FOR ADAFRUIT RA8875
+
+ 
+void DrawCheckerBoard() 
+{
+  // VERTICAL
+  for (int y=0; y<9; y++)
+  {
+    // HORIZONTAL
+    for (int x=0; x<10; x++)
+    {
+      tft.drawRect(oX + x*dX, y*dY+oY, dX, dY, ILI9341_DARKGREY);
+      tft.fillRect(oX + x*dX+1, y*dY+1+oY, dX-2, dY-2, DISPLAY_BLACK);
+    }
+    tft.drawRect(oX, oY, 10 * dX, 9 * dY, ILI9341_DARKGREY);  
+  }
+  tft.drawRect(oX, oY, 10 * dX, 9 * dY, ILI9341_DARKGREY);  
+}
+ 
+ 
+void DrawRectangleMenue() 
+{
+  // VERTICAL
+  for (int y=0; y<9; y++)
+  {
+    // HORIZONTAL
+    for (int x=0; x<10; x++)
+    {
+      tft.drawRect(oX, oY, 10 * dX, 9 * dY, DISPLAY_WHITE);
+      tft.fillRect(oX+1, oY+1, 10 * dX - 2, 9 * dY - 2, DISPLAY_BLACK);
+    }
+  }  
+}
+ 
+/* 
+void ShowVerticalScale() 
+{
+  // CLEAR TEXTAREA
+  tft.fillRect(0, 0, oX-2, 420, DISPLAY_BLACK);
+  // NOW WRITE NEW VALUES
+//  tft.textMode();
+  tft.textEnlarge(0);
+  char string[6]; 
+  int level ;
+  int Top ;
+  if (AttSet == 0) Top = (int)( ThruLoss + MaxIFLevel );
+  if (AttSet == 1) Top = (int)( ThruLoss + MaxIFLevel + AttLoss );
+ 
+  for (int y=0; y<=9; y++)
+  {
+      tft.textSetCursor(0, y * dY);
+      tft.textTransparent(DISPLAY_WHITE);
+      level = Top - y * 10 ;
+      itoa(level,string,10);
+      if (level == 0)
+      {
+      for (int z=6; z>0; z--) string[z] = string[z-1] ; 
+      string[0] = 32 ; // space
+      }
+      if (level >= 0)
+      {
+      for (int z=6; z>0; z--) string[z] = string[z-1] ; 
+      }
+      if (level > 0) string[0] = 43 ; // plus
+      if (abs(level) < 100)
+      {
+      for (int z=6; z>0; z--) string[z] = string[z-1] ;
+      string[0] = 32 ; // space 
+      }
+        
+      tft.textWrite(string);
+  }  
+}
+
+ 
+void DrawLine() 
+{
+  long Y1, Y2 ;
+  if (AttSet == 0) TopLevel = MaxIFLevel + ThruLoss  ;
+  if (AttSet == 1) TopLevel = MaxIFLevel + AttLoss + ThruLoss ;
+  // HORIZONTAL
+  for (int x=0; x < DOTS-2 ; x+=1)
+  {
+  if (Sample[x] >= TopLevel) Sample[x] = TopLevel - 0.5 ;
+  if (Sample[x+1] >= TopLevel) Sample[x+1] = TopLevel - 0.5 ;
+  if (Sample[x] <= (TopLevel - 90.0)) Sample[x] = TopLevel - 89.5 ;
+  if (Sample[x+1] <= (TopLevel - 90.0)) Sample[x+1] = TopLevel - 89.5 ;
+  Y1 = (int)(dY * abs((TopLevel - Sample[x])   * 0.1 ));
+  Y2 = (int)(dY * abs((TopLevel - Sample[x+1]) * 0.1 ));
+  tft.drawLine(x+oX+2, Y1+oY, x+oX+3, Y2+oY, DISPLAY_YELLOW);
+  tft.drawLine(x+oX+2, Y1+oY+1, x+oX+3, Y2+oY+1, DISPLAY_YELLOW);
+  }
+}
+ 
+*/ 
+
+#endif
 
 // -------------------- Rotary -------------------------------------------
 #ifdef USE_ROTARY
@@ -180,6 +372,10 @@ const int SI_nSEL[4] = { 0,5, 11, 12 }; // #4 is dummy!!!!!!
 const int SI_SCLK = 1 ;
 const int SI_SDI = 2 ;
 const int SI_SDO = 3 ;
+
+// Use this to tune the xtal oscilators on the SI4432 modules to the exact frquency
+#define V0_XTAL_CAPACITANCE 0x64
+#define V1_XTAL_CAPACITANCE 0x64
 
 
 byte SI4432REG[129] ;
@@ -479,7 +675,6 @@ float SI4432_SET_RBW(float WISH)
     fils = 7 ;
     REAL = 137.9 ;
   }
-  if (WISH > 137.9) dwn3 = 1 ;
   if (WISH > 137.9) {
     ndec = 1 ;
     fils = 4 ;
@@ -559,9 +754,19 @@ float SI4432_SET_RBW(float WISH)
     REAL = 620.7 ;
   }
 
+  if (WISH > 137.9) dwn3 = 1 ;
+
   byte BW = (dwn3 << 7) | (ndec << 4) | fils ;
 
   SI4432_Write_Byte(0x1C , BW ) ;
+
+  rxosr = 500.0 * ( 1.0 + 2.0 * dwn3 ) / ( pow(2.0, (ndec-3.0)) * REAL );
+
+  byte integer = (int)rxosr ;
+  byte fractio = (int)((rxosr - integer) * 8 ) ;
+  byte memory = (integer << 3) | (0x07 & fractio) ;
+
+  SI4432_Write_Byte(0x20 , memory ) ;
   return REAL ;
 }
 
@@ -711,11 +916,14 @@ void SI4432_Init()
 
   SI4432_Sel = 0;
   SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
+  SI4432_Write_Byte(0x09, V0_XTAL_CAPACITANCE);// Tune the crystal
   SI4432_Set_Frequency(433920000);
   SI4432_Write_Byte(0x0D, 0x1F) ; // Set GPIO2 output to ground
 
+
   SI4432_Sel = 1;
   SI4432_Write_Byte(0x7, 0x0B); // start TX
+  SI4432_Write_Byte(0x09, V1_XTAL_CAPACITANCE);// Tune the crystal
   SI4432_Set_Frequency(443920000);
   SI4432_Write_Byte(0x6D, 0x1F);//Set full power
   
@@ -774,19 +982,6 @@ void PE4302_Write_Byte(byte DATA )
 }
 
 
-//------------------------------------------ Display ------------------------------------
-#ifdef USE_DISPLAY
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
-
-// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-#define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-#endif
-
 // ----------------------- rotary -----------------------------------
 
 const int buttonPin = 8;    // the number of the pushbutton pin
@@ -843,12 +1038,12 @@ void showFreq(unsigned long f)
   t[i++] = 0;
 //  Serial.println(t);
 #ifdef USE_DISPLAY
-  display.clearDisplay();
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(SSD1306_WHITE);        // Draw white text
-  display.setCursor(0, 1);
-  display.print(t);
-  display.display();
+  tft.fillRect(0, 0, tft.width(), oY-2, DISPLAY_BLACK);
+//  clearDisplay();
+  textWhite();        // Draw white text
+  tft.setCursor(0, 1);
+  tft.print(t);
+  sendDisplay();
 #endif
 }
 
@@ -1042,29 +1237,29 @@ update:
   t = ( __FlashStringHelper *) &(menu[currentMenu].itemText[0]);
 
   if (stateChange || dirty) {
-    display.clearDisplay();
-    display.setTextSize(1);             // Normal 1:1 pixel scale
-    display.setTextColor(SSD1306_WHITE);        // Draw white text
-    display.setCursor(0, 0);
+  tft.fillRect(0, 0, tft.width(), oY-2, DISPLAY_BLACK);
+//    clearDisplay();
+    textWhite();        // Draw white text
+    tft.setCursor(0, 0);
     if (!menuActive) {
-      display.print(ut);
-      display.print(':');
-      display.print(t);   // Show menu text
+      tft.print(ut);
+      tft.print(':');
+      tft.print(t);   // Show menu text
     } else {
-      display.print(t);
-      display.print(':');
-      //      display.setCursor(8, 0);
+      tft.print(t);
+      tft.print(':');
+      //      tft.setCursor(8, 0);
       if (kind == menuToggle) {
         strcpy_P(buffer, (char*)pgm_read_word(&(toggleText[(v[dataIndex]) + mi]))); // Toggle text
-        display.print(buffer);
+        tft.print(buffer);
       } else if (kind == menuValue) {
-        display.print(v[dataIndex]);    // Value
+        tft.print(v[dataIndex]);    // Value
       } else if (kind == menuAction) {
-        //      display.print((const __FlashStringHelper*)&(v[5])); // Nothing to show
+        //      tft.print((const __FlashStringHelper*)&(v[5])); // Nothing to show
       }
       // else do not show anything
     }
-    display.display();
+    sendDisplay();
     stateChange = false;
     dirty = false;
 //    if (buttonEvent == 0)
@@ -1146,7 +1341,7 @@ int debug = 0;
 
 
 int inData = 0;
-long steps = 100;
+long steps = DISPLAY_POINTS;
 unsigned long  startFreq = 250000000;
 unsigned long  stopFreq = 300000000;
 unsigned long  lastFreq[6] = { 300000000, 300000000,0,0,0,0};
@@ -1170,10 +1365,23 @@ int hardware = 0;
 
 
 // A Arduino zero benefits from a large serial buffer, for a nano you can reduce the buffer size such as 64
-#define BUFFERSIZE 512
+#define BUFFERSIZE 256
 uint8_t serialBuff[BUFFERSIZE];
-int     serialIndex=0;
+volatile int     serialIndex=0;
+//#define HIGHPOINT (BUFFERSIZE - 20)
+#define HIGHPOINT (0)
 
+void serialFlushIf(int amount)
+{
+  if (serialIndex > amount)
+  {
+    pinMode(tinySA_led, OUTPUT); // Flash led if serial data is being send
+    digitalWrite(tinySA_led, HIGH);
+    Serial.write(serialBuff, serialIndex);
+    digitalWrite(tinySA_led, LOW);
+    serialIndex = 0;
+  }
+}
 
 
 
@@ -1221,7 +1429,7 @@ void info()
 }
 
 
-unsigned char myData[128]; 
+unsigned char myData[DISPLAY_POINTS+1]; 
 int peakLevel;
 double peakFreq;
 
@@ -1231,47 +1439,58 @@ double peakFreq;
 
 void displayHisto ()
 {
-  display.clearDisplay();
-
+//  clearDisplay();
+  DrawCheckerBoard();
 //int settingMax = 0;
 //int settingMin = -120;
   int delta=settingMax - settingMin;
 
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(SSD1306_WHITE);        // Draw white text
-  display.setCursor(0,0);             // Start at top-left corner
-  display.println(settingMax);
-  display.setCursor(0,56);
-  display.println(settingMin);
-  
-  for (int i=0; i<=6; i++)
-    display.drawPixel(BARSTART - 2, i*10, SSD1306_WHITE);
+  // Display levels
+  tft.fillRect(0, 0, oX-2, tft.height(), DISPLAY_BLACK);
+  textWhite();
+  tft.setCursor(0,oY);             // Start at top-left corner
+  tft.println(settingMax);
+  tft.setCursor(0,tft.height() - 8);
+  tft.println(settingMin);
 
-  for (int i=0; i<100; i++) {
-    double f = ((myData[i] / 2.0  - settingAttenuate) - 120.0);
-    f = (f - settingMin) * display.height() / delta;
-    if (f > 64) f = 63.0;
-    display.drawLine(i+BARSTART, display.height() -1 - (int)f, i+BARSTART, display.height()-1, SSD1306_WHITE);
-  }
- 
-  display.setTextColor(SSD1306_INVERSE);        // Draw white text
-  display.setCursor(BARSTART+2,0);             // Start at top-left corner
+  // Dsiplay frequencies
+  tft.fillRect(0, 0, tft.width(), oY-2, DISPLAY_BLACK);
+  tft.setTextColor(DISPLAY_INVERSE);        // Draw white text
+  tft.setCursor(oX+2,0);             // Start at top-left corner
   double f = (((double)(startFreq - lastFreq[0]))/ 1000000.0);
-  display.println(f);
-  display.setCursor(SCREEN_WIDTH- BARSTART - 12,0);
+  tft.println(f);
+  tft.setCursor(tft.width() - 36,0);
   f = (((double)(stopFreq - lastFreq[0]))/ 1000000.0);
-  display.println(f);
-
-  for (int i=0; i<12; i++)
-    display.drawPixel(BARSTART + i*10, 63, SSD1306_INVERSE);
+  tft.println(f);
 
   if (peakLevel > -150) {
-    display.setCursor(0,28);             // Start at top-left corner
-    display.println((int)((peakLevel/ 2.0  - settingAttenuate) - 120.0)+settingLevelCal);
-    display.setCursor(BARSTART+2,8);
-    display.println(peakFreq/ 1000000.0);
+    tft.setCursor(0,tft.height()/2);             // Start at top-left corner
+    tft.println((int)((peakLevel/ 2.0  - settingAttenuate) - 120.0)+settingLevelCal);
+    tft.setCursor(oX+2,8);
+    tft.println(peakFreq/ 1000000.0);
   }
-  display.display();
+
+    
+#define Y_GRIDS 9
+  for (int i=0; i<DISPLAY_POINTS - 1; i++) {
+    double f = ((myData[i] / 2.0  - settingAttenuate) - 120.0);
+    f = (f - settingMin) * Y_GRIDS * dY / delta;
+    if (f >= Y_GRIDS * dY) f = Y_GRIDS * dY-1;
+    if (f < 0) f = 0;
+    double f2 = ((myData[i+1] / 2.0  - settingAttenuate) - 120.0);
+    f2 = (f2 - settingMin) * Y_GRIDS * dY / delta;
+    if (f2 >= Y_GRIDS * dY) f2 = Y_GRIDS * dY-1;
+    if (f2 < 0) f2 = 0;
+  int x = i;
+  int Y1 = Y_GRIDS * dY - 1 - (int)f;
+  int Y2 = Y_GRIDS * dY - 1 - (int)f2;
+  tft.drawLine(x+oX, oY+Y1, x+oX+1, oY+Y2, DISPLAY_YELLOW);
+  tft.drawLine(x+oX, oY+Y1+1, x+oX+1, oY+Y2+1, DISPLAY_YELLOW);
+  }
+ 
+
+
+  sendDisplay();
 }
 #endif
 
@@ -1286,21 +1505,30 @@ void setup()
 #if defined(ARDUINO_ARCH_SAMD) 
   Wire.setClock(800000);
 #endif
+
+//SPISettings(12000000, MSBFIRST, SPI_MODE0)
+//SPI.beginTransaction();
   
-  //Serial.println("Starting");
+  Serial.println("Starting");
   SI4432_Init();
-  //Serial.println("Init done");
+  Serial.println("Init done");
 
   info();
 
-#ifdef USE_DISPLAY
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
+#ifdef USE_SSD1306
+  if(!tft.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     Serial.println(F("SSD1306 allocation failed"));
+
   }
+#endif
+#ifdef USE_ILI9341
+  tft.begin();
+  tft.setRotation(1);
+
 #endif
   // Show initial display buffer contents on the screen --
   // the library initializes this with an Adafruit splash screen.
-//  display.display();
+//  sendDisplay();
 //  displayHisto();
 #ifdef USE_ROTARY
   R_setup();
@@ -1346,18 +1574,6 @@ void setFreq(int V, unsigned long freq)
     else
 #endif
       SI4432_Set_Frequency(freq);
-  }
-}
-
-void serialFlushIf(int amount)
-{
-  if (serialIndex > amount)
-  {
-    pinMode(tinySA_led, OUTPUT); // Flash led if serial data is being send
-    digitalWrite(tinySA_led, HIGH);
-    Serial.write(serialBuff, serialIndex);
-    digitalWrite(tinySA_led, LOW);
-    serialIndex = 0;
   }
 }
 
@@ -1481,7 +1697,7 @@ void loop()
 //    Serial.println(autoSweepStep);
     if (autoSweepStep == 0) {
       autoSweepFreq = lFreq[0];
-      autoSweepFreqStep = (lFreq[1] - lFreq[0])/100;
+      autoSweepFreqStep = (lFreq[1] - lFreq[0])/DISPLAY_POINTS;
       setFreq (0, lFreq[2]);
       lastFreq[0] = lFreq[2];
       startFreq = lFreq[0] + lFreq[2];
@@ -1489,7 +1705,7 @@ void loop()
       int p = - settingAttenuate * 2;
       PE4302_Write_Byte(p);
       SetPowerReference(settingPowerCal);
-      settingBandwidth = (lFreq[1] - lFreq[0])/100.0/1000.0;
+      settingBandwidth = ((float)(lFreq[1] - lFreq[0]))/DISPLAY_POINTS/1000.0;
       SI4432_Sel = 0;
       SI4432_SET_RBW(settingBandwidth);
       SI4432_Sel = 1;
@@ -1530,8 +1746,8 @@ void loop()
         SI4432_Init();
     }
     autoSweepStep++;
-    autoSweepFreq += (lFreq[1] - lFreq[0])/100;
-    if (autoSweepStep >= 100) {
+    autoSweepFreq += (lFreq[1] - lFreq[0])/DISPLAY_POINTS;
+    if (autoSweepStep >= DISPLAY_POINTS) {
       autoSweepStep = 0;
 #if USE_DISPLAY
       displayHisto();
@@ -1575,7 +1791,7 @@ void loop()
     for(int i = 0; i < steps; i++ )
     {
       unsigned long modfreq = freq;
-      serialFlushIf(BUFFERSIZE - 10);
+      serialFlushIf(HIGHPOINT);
       old_micros = micros();
       if (extraVFO>=0) {
         setFreq(extraVFO,modfreq-offset);
@@ -1591,6 +1807,7 @@ void loop()
         serialBuff[serialIndex++] = 'x'; 
         serialBuff[serialIndex++] = ((byte) (sensor));
         serialBuff[serialIndex++] = ((byte) (sensor>>8));
+    serialFlushIf(0); ///TEMP -----------------------------------------------
 
         if (i < 128){
           myData[i] = sensor;
@@ -1940,8 +2157,3 @@ void loop()
   }
   }
 }
-
-
-
-
-

@@ -1452,6 +1452,8 @@ void displayHisto ()
   tft.println(settingMax);
   tft.setCursor(0,tft.height() - 8);
   tft.println(settingMin);
+  tft.setCursor(0,tft.height()/2);
+  tft.println("dB");
 
   // Dsiplay frequencies
   tft.fillRect(0, 0, tft.width(), oY-2, DISPLAY_BLACK);
@@ -1462,12 +1464,16 @@ void displayHisto ()
   tft.setCursor(tft.width() - 36,0);
   f = (((double)(stopFreq - lastFreq[0]))/ 1000000.0);
   tft.println(f);
+  tft.setCursor(tft.width()/2 - 18,0);
+  tft.println("MHz");
 
   if (peakLevel > -150) {
-    tft.setCursor(0,tft.height()/2);             // Start at top-left corner
-    tft.println((int)((peakLevel/ 2.0  - settingAttenuate) - 120.0)+settingLevelCal);
-    tft.setCursor(oX+2,8);
-    tft.println(peakFreq/ 1000000.0);
+    tft.setCursor(oX + 2,8);             // Start at top-left corner
+    tft.print("Peak is = ");
+    tft.print((int)((peakLevel/ 2.0  - settingAttenuate) - 120.0)+settingLevelCal);
+    tft.print("dB, ");
+    tft.print(peakFreq/ 1000000.0);
+    tft.print("MHz");
   }
 
     

@@ -1,5 +1,4 @@
-/* tinySA.ino - Si4432 Spectrum analyzer
- *
+/*
  * Copyright (c) 2017 Erik Kaashoek <erik@kaashoek.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -142,6 +141,7 @@ const int DOTS = 10 * dX - 2 ;  // FOR ADAFRUIT RA8875
  
 void DrawCheckerBoard() 
 {
+
   // VERTICAL
   for (int y=0; y<9; y++)
   {
@@ -156,7 +156,7 @@ void DrawCheckerBoard()
   tft.drawRect(oX, oY, 10 * dX, 9 * dY, ILI9341_DARKGREY);  
 }
  
- 
+#if 0 
 void DrawRectangleMenue() 
 {
   // VERTICAL
@@ -170,7 +170,7 @@ void DrawRectangleMenue()
     }
   }  
 }
- 
+#endif 
 /* 
 void ShowVerticalScale() 
 {
@@ -234,6 +234,8 @@ void DrawLine()
 */ 
 
 #endif
+
+//------------------ On screen menu system ---------------------
 
 // -------------------- Rotary -------------------------------------------
 #ifdef USE_ROTARY
@@ -982,6 +984,8 @@ void PE4302_Write_Byte(byte DATA )
 }
 
 
+
+
 // ----------------------- rotary -----------------------------------
 
 const int buttonPin = 8;    // the number of the pushbutton pin
@@ -1006,6 +1010,179 @@ int incrBaseDigit = 7 ;
 #define MAX_VFO 3
 long lFreq[MAX_VFO] = { 0,100000000,433700000};
 int dataIndex = 0;
+
+
+//--------------------- Frequency control -----------------------
+
+
+#define STOP_MAX 430000000
+#define START_MIN 0
+
+int32_t frequency0 = 0;
+int32_t frequency1 = 100000000;
+
+static void update_frequencies(void)
+{
+//  chMtxLock(&mutex_sweep);
+  uint32_t start, stop;
+  if (frequency1 > 0) {
+    start = frequency0;
+    stop = frequency1;
+  } else {
+    int32_t center = frequency0;
+    int32_t span = -frequency1;
+    start = center - span/2;
+    stop = center + span/2;
+  }
+  lFreq[0] = start;
+  lFreq[1] = stop;
+//  set_frequencies(start, stop, sweep_points);
+//  operation_requested = OP_FREQCHANGE;
+  
+//  update_marker_index();
+  
+  // set grid layout
+//  update_grid();
+//  chMtxUnlock(&mutex_sweep);
+}
+
+static void freq_mode_startstop(void)
+{
+  if (frequency1 <= 0) {
+    int center = frequency0;
+    int span = -frequency1;
+ //   ensure_edit_config();
+    frequency0 = center - span/2;
+    frequency1 = center + span/2;
+  }
+}
+
+static void freq_mode_centerspan(void)
+{
+  if (frequency1 > 0) {
+    int start = frequency0;
+    int stop = frequency1;
+//    ensure_edit_config();
+    frequency0 = (start + stop)/2; // center
+    frequency1 = -(stop - start); // span
+  }
+}
+
+
+void set_sweep_frequency(int type, int32_t freq)
+{
+//  chMtxLock(&mutex_sweep);
+  int32_t center;
+  int32_t span;
+//  int cal_applied = cal_status & CALSTAT_APPLY;
+  switch (type) {
+  case ST_START:
+//    ensure_edit_config();
+    freq_mode_startstop();
+    if (freq < START_MIN)
+      freq = START_MIN;
+    if (freq > STOP_MAX)
+      freq = STOP_MAX;
+    frequency0 = freq;
+    // if start > stop then make start = stop
+    if (frequency1 < freq)
+      frequency1 = freq;
+    update_frequencies();
+    break;
+  case ST_STOP:
+//    ensure_edit_config();
+    freq_mode_startstop();
+    if (freq > STOP_MAX)
+      freq = STOP_MAX;
+    if (freq < START_MIN)
+      freq = START_MIN;
+    frequency1 = freq;
+    // if start > stop then make start = stop
+    if (frequency0 > freq)
+      frequency0 = freq;
+    update_frequencies();
+    break;
+  case ST_CENTER:
+//    ensure_edit_config();
+    freq_mode_centerspan();
+    if (freq > STOP_MAX)
+      freq = STOP_MAX;
+    if (freq < START_MIN)
+      freq = START_MIN;
+    frequency0 = freq;
+    center = frequency0;
+    span = -frequency1;
+    if (center-span/2 < START_MIN) {
+      span = (center - START_MIN) * 2;
+      frequency1 = -span;
+    }
+    if (center+span/2 > STOP_MAX) {
+      span = (STOP_MAX - center) * 2;
+      frequency1 = -span;
+    }
+    update_frequencies();
+    break;
+  case ST_SPAN:
+ //   ensure_edit_config();
+    freq_mode_centerspan();
+    if (freq > STOP_MAX-START_MIN)
+        freq = STOP_MAX-START_MIN;
+    if (freq < 0)
+      freq = 0;
+    frequency1 = -freq;
+    center = frequency0;
+    span = -frequency1;
+    if (center-span/2 < START_MIN) {
+      center = START_MIN + span/2;
+      frequency0 = center;
+    }
+    if (center+span/2 > STOP_MAX) {
+      center = STOP_MAX - span/2;
+      frequency0 = center;
+    }
+    update_frequencies();
+    break;
+  case ST_CW:
+//    ensure_edit_config();
+    freq_mode_centerspan();
+    if (freq > STOP_MAX)
+      freq = STOP_MAX;
+    if (freq < START_MIN)
+      freq = START_MIN;
+    frequency0 = freq;
+    frequency1 = 0;
+    update_frequencies();
+    break;
+  }
+
+//  if (cal_auto_interpolate && cal_applied)
+//    cal_interpolate(lastsaveid);
+//  chMtxUnlock(&mutex_sweep);
+}
+
+uint32_t get_sweep_frequency(int type)
+{
+  if (frequency1 >= 0) {
+    switch (type) {
+    case ST_START: return frequency0;
+    case ST_STOP: return frequency1;
+    case ST_CENTER: return (frequency0 + frequency1)/2;
+    case ST_SPAN: return frequency1 - frequency0;
+    case ST_CW: return (frequency0 + frequency1)/2;
+    }
+  } else {
+    switch (type) {
+    case ST_START: return frequency0 + frequency1/2;
+    case ST_STOP: return frequency0 - frequency1/2;
+    case ST_CENTER: return frequency0;
+    case ST_SPAN: return -frequency1;
+    case ST_CW: return frequency0;
+    }
+  }
+  return 0;
+}
+
+
 
 
 void showFreq(unsigned long f)
@@ -1503,6 +1680,11 @@ void displayHisto ()
 void setup() 
 {
 
+  config.touch_cal[0] = 3841;
+  config.touch_cal[1] = 3710;
+  config.touch_cal[2] = -168;
+  config.touch_cal[3] = -228;
+
   Serial.begin(115200); // 115200
 #if defined(ARDUINO_ARCH_SAMD)
 //  while(!SerialUSB); // Uncomment this line if you want the Arduino to wait with starting till the serial monitor is activated, usefull when debugging
@@ -1530,6 +1712,8 @@ void setup()
 #ifdef USE_ILI9341
   tft.begin();
   tft.setRotation(1);
+  ts.begin();
+  ts.setRotation(1);
 
 #endif
   // Show initial display buffer contents on the screen --
@@ -1549,6 +1733,8 @@ void setup()
   Si446x_init(); 
   Si446x_RX ((uint8_t)70);
 #endif
+// touch_cal_exec();
+//touch_draw_test();
 }
 
 
@@ -1590,7 +1776,9 @@ int standalone = true;
 
 void loop()
 {
-
+  ui_process_touch();
+  if (ui_mode != UI_NORMAL)
+    return;
 #ifdef USE_ROTARY
 
   if( /*standalone && */ Serial.available() == 0) // Serial has priority

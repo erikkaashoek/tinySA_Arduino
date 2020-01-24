@@ -1,3 +1,10 @@
+#include <SPI.h>
+#include "Adafruit_GFX.h"
+#include "Adafruit_ILI9341.h"
+
+#define Serial SerialUSB
+
+#include "ui.h"
 
 #define FALSE 0
 #define TRUE -1
@@ -12,14 +19,6 @@
 #define TS_MAXY 3850
 
 XPT2046_Touchscreen ts(CS_PIN);
-
-enum {
-  ST_START, ST_STOP, ST_CENTER, ST_SPAN, ST_CW
-};
-
-void set_sweep_frequency(int type, int32_t frequency);
-uint32_t get_sweep_frequency(int type);
-
 
 
 /*
@@ -73,25 +72,6 @@ uistat_t uistat = {
 0,
 0
 };
-
-#define TRACE_COUNT 1
-
-typedef struct {
-    int32_t magic;
-#ifdef __DAC__
-    uint16_t dac_value;
-#endif
-    uint16_t grid_color;
-    uint16_t menu_normal_color;
-    uint16_t menu_active_color;
-    uint16_t trace_color[TRACE_COUNT];
-    int16_t touch_cal[4];
-    int8_t default_loadcal;
-    uint32_t harmonic_freq_threshold;
-    int16_t vbat_offset;
-    int32_t checksum;
-} config_t;
-
 
 config_t config = {
   1234,
@@ -174,14 +154,10 @@ marker_t markers[MARKER_COUNT];
 int active_marker;
 
 enum {
-  UI_NORMAL, UI_MENU, UI_NUMERIC, UI_KEYPAD
-};
-
-enum {
   KM_START, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_SCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY
 };
 
-static uint8_t ui_mode = UI_NORMAL;
+uint8_t ui_mode = UI_NORMAL;
 static uint8_t keypad_mode;
 static int8_t selection = 0;
 
@@ -474,6 +450,16 @@ static const menuitem_t *menu_stack[MENU_STACK_DEPTH_MAX] = {
 
 
 //boolean wastouched = true;
+static int touch_check(void);
+
+static void touch_wait_release(void)
+{
+  int status;
+  /* wait touch release */
+  do {
+    status = touch_check();
+  } while(status != EVT_TOUCH_RELEASED);
+}
 
 static int touch_status(void)
 {
@@ -517,19 +503,13 @@ static int touch_check(void)
   }
 }
 
-static void touch_wait_release(void)
-{
-  int status;
-  /* wait touch release */
-  do {
-    status = touch_check();
-  } while(status != EVT_TOUCH_RELEASED);
-}
 
 void touch_start_watchdog()
 {
   // dummy
 }
+
+extern Adafruit_ILI9341 tft;
 
 #define ili9341_fill  tft.fillRect
 #define ili9341_line  tft.drawLine
@@ -548,14 +528,14 @@ Serial.println(t);
 
 int NF20x22; // dummy
 
-char kpf[25] = {
-  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '-', 'x', 'k', 'M', 'G', '<', '^', 'd', '+', 'k', 'n', 'p'
+char kpf[25] = {//                                                                back        up
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '-', 'x', 'k', 'M', 'G', (char)27, char(24), 'd', '+', 'k', 'n', 'p'
 };
 
 void ili9341_drawfont(char c, int *dummy,int x, int y, int fg, int bg)
 {
   char t[2] = {kpf[c],0};
-Serial.println(t);
+// Serial.println(t);
   ili9341_drawstring_size( (const char *)t, x,y, fg, bg, 3);
 }
 
@@ -666,7 +646,7 @@ ili9341_drawstring_7x13("TOUCH TEST: DRAG PANEL", OFFSETX, 227, 0xffff, 0x0000);
   touch_start_watchdog();
 }
 
-
+extern void show_logo(void);
 
 void
 show_version(void)
@@ -1162,6 +1142,10 @@ static void menu_move_back(void)
 {
   if (menu_current_level == 0)
     return;
+
+Serial.print("Poplevel=");
+Serial.println(menu_current_level);
+
   menu_current_level--;
   ensure_selection();
   erase_menu_buttons();
@@ -1170,6 +1154,10 @@ static void menu_move_back(void)
 
 static void menu_push_submenu(const menuitem_t *submenu)
 {
+
+Serial.print("Pushlevel=");
+Serial.println(menu_current_level);
+
   if (menu_current_level < MENU_STACK_DEPTH_MAX-1)
     menu_current_level++;
   menu_stack[menu_current_level] = submenu;
@@ -1194,6 +1182,14 @@ static void menu_invoke(int item)
 {
   const menuitem_t *menu = menu_stack[menu_current_level];
   menu = &menu[item];
+
+Serial.print("Invoke=");
+Serial.print(item);
+Serial.print(", type=");
+Serial.print(menu->type);
+Serial.print(", label= ");
+Serial.println(menu->label);
+
 
   switch (menu->type) {
   case MT_NONE:
@@ -1481,7 +1477,9 @@ static void menu_select_touch(int i)
 {
   selection = i;
   draw_menu();
+Serial.println("Before wait release");
   touch_wait_release();
+Serial.println("After wait release");
   selection = -1;
   menu_invoke(i);
 }
@@ -1499,10 +1497,10 @@ static void menu_apply_touch(void)
     if (menu[i].type == MT_BLANK) 
       continue;
     int y = 32*i;
-    #if !defined(ANTENNA_ANALYZER)
+#if !defined(ANTENNA_ANALYZER)
     if (y-2 < touch_y && touch_y < y+30+2
     && 320-60 < touch_x) {
-    #else
+#else
   if (y-2 < touch_y && touch_y < y+30+2
     && 320-72 < touch_x) {
 #endif
@@ -2126,7 +2124,7 @@ static int touch_pickup_marker(void)
 }
 
 
-static void ui_process_touch(void)
+void ui_process_touch(void)
 {
   awd_count++;
 
@@ -2167,5 +2165,3 @@ void ui_process(void)
   }
   operation_requested = OP_NONE;
 }
-
-

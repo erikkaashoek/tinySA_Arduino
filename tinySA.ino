@@ -59,7 +59,7 @@ Adafruit_SSD1306 tft(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 
 #ifdef USE_ILI9341
-#include "SPI.h"
+#include <SPI.h>
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"
 
@@ -236,6 +236,9 @@ void DrawLine()
 #endif
 
 //------------------ On screen menu system ---------------------
+
+#include "ui.h"
+
 
 // -------------------- Rotary -------------------------------------------
 #ifdef USE_ROTARY
@@ -1714,7 +1717,7 @@ void setup()
   tft.setRotation(1);
   ts.begin();
   ts.setRotation(1);
-
+clearDisplay();
 #endif
   // Show initial display buffer contents on the screen --
   // the library initializes this with an Adafruit splash screen.
@@ -1774,11 +1777,25 @@ long autoSweepFreq = 0;
 long autoSweepFreqStep = 0;
 int standalone = true;
 
+char test[258];
+
 void loop()
 {
+/*
+  int i;
+  for (i=0;i<20;i++)
+    test[i] = 140+i;
+  test[20] = 0;
+  test[0] = 1;
+  ili9341_drawstring_size(test, 0,0, 0xffff, 0x0000, 2);
+  ili9341_drawstring_size("01234567891123456789", 0,12, 0xffff, 0x0000, 2);
+  return;
+*/
   ui_process_touch();
-  if (ui_mode != UI_NORMAL)
+  if (ui_mode != UI_NORMAL) {
+    autoSweepStep = 0;
     return;
+  }
 #ifdef USE_ROTARY
 
   if( /*standalone && */ Serial.available() == 0) // Serial has priority

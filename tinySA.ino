@@ -25,16 +25,18 @@
 #include <SPI.h>
 #include <Wire.h>
 
-#if defined(ARDUINO_ARCH_SAMD) 
+
+
+//#if defined(ARDUINO_ARCH_SAMD) 
 #define  Serial SerialUSB
-#endif
+//#endif
 
 // Comment out below line if you do not want a local user interface
-#define USE_ROTARY  1
 #define USE_DISPLAY 1
 // #define USE_SSD1306 1
 #define USE_ILI9341 1
 // #define USE_SI4463  1
+//#define USE_ILI9488 1
 
 #ifdef USE_SI4463
 #include "./Si446x.h" 
@@ -70,12 +72,30 @@ Adafruit_SSD1306 tft(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // Use hardware SPI (on Uno, #13, #12, #11) and the above for CS/DC
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
-#define DISPLAY_POINTS 300
+#define DISPLAY_POINTS 290
 
 #endif
 
 //#define SCREEN_WIDTH 320 // OLED display width, in pixels
 //#define SCREEN_HEIGHT 240 // OLED display height, in pixels
+
+
+
+#ifdef USE_ILI9488
+#include <SPI.h>
+#include "Adafruit_GFX.h"
+#include "ILI9488.h"
+
+// For the Adafruit shield, these are the default.
+#define TFT_DC A5
+#define TFT_CS A1
+#define TFT_RST A0
+
+ILI9488 tft = ILI9488(TFT_CS, TFT_DC, TFT_RST);
+
+#define DISPLAY_POINTS 440
+
+#endif
 
 // The onboard led is blinked during serial transfer
 #define tinySA_led 13
@@ -86,13 +106,43 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
 //--------------------- Generic display ---------------
 
+
+#ifdef USE_SSD1306  
+#define DISPLAY_WHITE SSD1306_WHITE
+#define DISPLAY_BLACK SSD1306_BLACK
+#define DISPLAY_GRAY SSD1306_WHITE
+#define DISPLAY_YELLOW SSD1306_WHITE
+#define DISPLAY_INVERSE SSD1306_INVERSE
+#endif
+#ifdef USE_ILI9341
+#define DISPLAY_WHITE ILI9341_WHITE
+#define DISPLAY_BLACK ILI9341_BLACK
+#define DISPLAY_DARKGREY ILI9341_DARKGREY
+#define DISPLAY_YELLOW ILI9341_YELLOW
+#define DISPLAY_INVERSE  ILI9341_WHITE
+#define SCREEN_WIDTH 320 // OLED display width, in pixels
+#define SCREEN_HEIGHT 240 // OLED display height, in pixels
+#endif
+#ifdef USE_ILI9488
+#define DISPLAY_WHITE ILI9488_WHITE
+#define DISPLAY_BLACK ILI9488_BLACK
+#define DISPLAY_DARKGREY ILI9488_DARKGREY
+#define DISPLAY_YELLOW ILI9488_YELLOW
+#define DISPLAY_INVERSE  ILI9488_WHITE
+#define SCREEN_WIDTH 320 // OLED display width, in pixels
+#define SCREEN_HEIGHT 240 // OLED display height, in pixels
+#endif
+
 void clearDisplay()
 {
 #ifdef USE_SSD1306  
   tft.clearDisplay();
 #endif
 #ifdef USE_ILI9341
-  tft.fillScreen(ILI9341_BLACK);
+  tft.fillScreen(DISPLAY_BLACK);
+#endif
+#ifdef USE_ILI9488
+  tft.fillScreen(DISPLAY_BLACK);
 #endif
 }
 
@@ -101,20 +151,12 @@ void textWhite()
 #ifdef USE_SSD1306  
    tft.setTextSize(1);
    tft.setTextColor(SSD1306_WHITE);        // Draw white text
-#define DISPLAY_WHITE SSD1306_WHITE
-#define DISPLAY_BLACK SSD1306_BLACK
-#define DISPLAY_GRAY SSD1306_WHITE
-#define DISPLAY_YELLOW SSD1306_WHITE
-#define DISPLAY_INVERSE SSD1306_INVERSE
 #endif
 #ifdef USE_ILI9341
-  tft.setTextColor(ILI9341_WHITE); 
-#define DISPLAY_WHITE ILI9341_WHITE
-#define DISPLAY_BLACK ILI9341_BLACK
-#define DISPLAY_GRAY ILI9341_WHITE
-#define DISPLAY_YELLOW ILI9341_YELLOW
-#define DISPLAY_INVERSE  ILI9341_WHITE
-#define SCREEN_WIDTH  tft.width()
+  tft.setTextColor(DISPLAY_WHITE); 
+#endif
+#ifdef USE_ILI9488
+  tft.setTextColor(DISPLAY_WHITE); 
 #endif
 }
 
@@ -126,248 +168,78 @@ void sendDisplay()
 #ifdef USE_ILI9341
     yield();
 #endif
+#ifdef USE_ILI9488
+ //   yield();
+#endif
 }
 
 //---------------- Drawing ------------------
 
-#ifdef USE_ILI9341
+#if USE_ILI9341 || USE_ILI9488
 
-const int dX = 30 ;
-const int dY = 24 ;
+const int char_height = 8;
+
+#define X_GRID  10
+#define Y_GRID  9
+
+#if USE_ILI9341
+const int dX = 29 ;
+const int dY = char_height * 3 ;
+const int oX = 30 ;
+const int oY = char_height * 2 -1 ;
+#endif
+
+#if USE_ILI9488
+const int dX = 44 ;
+const int dY = 32;
 const int oX = 20 ;
-const int oY = 24 ;
-const int DOTS = 10 * dX - 2 ;  // FOR ADAFRUIT RA8875
+const int oY = char_height * 2 ;
+#endif
 
- 
+/*
 void DrawCheckerBoard() 
 {
 
   // VERTICAL
-  for (int y=0; y<9; y++)
+  for (int y=0; y<Y_GRID; y++)
   {
     // HORIZONTAL
-    for (int x=0; x<10; x++)
+    for (int x=0; x<X_GRID; x++)
     {
-      tft.drawRect(oX + x*dX, y*dY+oY, dX, dY, ILI9341_DARKGREY);
+      tft.drawRect(oX + x*dX, y*dY+oY, dX, dY, DISPLAY_DARKGREY);
       tft.fillRect(oX + x*dX+1, y*dY+1+oY, dX-2, dY-2, DISPLAY_BLACK);
     }
-    tft.drawRect(oX, oY, 10 * dX, 9 * dY, ILI9341_DARKGREY);  
+    tft.drawRect(oX, oY, X_GRID * dX, Y_GRID * dY, DISPLAY_DARKGREY);  
   }
-  tft.drawRect(oX, oY, 10 * dX, 9 * dY, ILI9341_DARKGREY);  
+  tft.drawRect(oX, oY, X_GRID * dX, Y_GRID * dY, DISPLAY_DARKGREY);  
 }
- 
-#if 0 
-void DrawRectangleMenue() 
+*/
+void DrawCheckerBoard(int px) 
 {
-  // VERTICAL
-  for (int y=0; y<9; y++)
-  {
-    // HORIZONTAL
-    for (int x=0; x<10; x++)
-    {
-      tft.drawRect(oX, oY, 10 * dX, 9 * dY, DISPLAY_WHITE);
-      tft.fillRect(oX+1, oY+1, 10 * dX - 2, 9 * dY - 2, DISPLAY_BLACK);
-    }
-  }  
-}
-#endif 
-/* 
-void ShowVerticalScale() 
-{
-  // CLEAR TEXTAREA
-  tft.fillRect(0, 0, oX-2, 420, DISPLAY_BLACK);
-  // NOW WRITE NEW VALUES
-//  tft.textMode();
-  tft.textEnlarge(0);
-  char string[6]; 
-  int level ;
-  int Top ;
-  if (AttSet == 0) Top = (int)( ThruLoss + MaxIFLevel );
-  if (AttSet == 1) Top = (int)( ThruLoss + MaxIFLevel + AttLoss );
- 
-  for (int y=0; y<=9; y++)
-  {
-      tft.textSetCursor(0, y * dY);
-      tft.textTransparent(DISPLAY_WHITE);
-      level = Top - y * 10 ;
-      itoa(level,string,10);
-      if (level == 0)
-      {
-      for (int z=6; z>0; z--) string[z] = string[z-1] ; 
-      string[0] = 32 ; // space
-      }
-      if (level >= 0)
-      {
-      for (int z=6; z>0; z--) string[z] = string[z-1] ; 
-      }
-      if (level > 0) string[0] = 43 ; // plus
-      if (abs(level) < 100)
-      {
-      for (int z=6; z>0; z--) string[z] = string[z-1] ;
-      string[0] = 32 ; // space 
-      }
-        
-      tft.textWrite(string);
-  }  
-}
 
- 
-void DrawLine() 
-{
-  long Y1, Y2 ;
-  if (AttSet == 0) TopLevel = MaxIFLevel + ThruLoss  ;
-  if (AttSet == 1) TopLevel = MaxIFLevel + AttLoss + ThruLoss ;
-  // HORIZONTAL
-  for (int x=0; x < DOTS-2 ; x+=1)
-  {
-  if (Sample[x] >= TopLevel) Sample[x] = TopLevel - 0.5 ;
-  if (Sample[x+1] >= TopLevel) Sample[x+1] = TopLevel - 0.5 ;
-  if (Sample[x] <= (TopLevel - 90.0)) Sample[x] = TopLevel - 89.5 ;
-  if (Sample[x+1] <= (TopLevel - 90.0)) Sample[x+1] = TopLevel - 89.5 ;
-  Y1 = (int)(dY * abs((TopLevel - Sample[x])   * 0.1 ));
-  Y2 = (int)(dY * abs((TopLevel - Sample[x+1]) * 0.1 ));
-  tft.drawLine(x+oX+2, Y1+oY, x+oX+3, Y2+oY, DISPLAY_YELLOW);
-  tft.drawLine(x+oX+2, Y1+oY+1, x+oX+3, Y2+oY+1, DISPLAY_YELLOW);
-  }
+  if ((px % dX) != 0)
+    return;
+  // VERTICAL
+  int x = px / dX;
+//  for (int x=0; x<X_GRID; x++)
+//  {
+    // HORIZONTAL
+    for (int y=0; y<Y_GRID; y++)
+    {
+      tft.drawRect(oX + x*dX, y*dY+oY, dX+1, dY+1, DISPLAY_DARKGREY);
+      tft.fillRect(oX + x*dX+1, y*dY+1+oY, dX-1, dY-1, DISPLAY_BLACK);
+    }
+    tft.drawRect(oX, oY, X_GRID * dX+1, Y_GRID * dY+1, DISPLAY_DARKGREY);  
+//  }
+  if (px == 0)
+  tft.drawRect(oX, oY, X_GRID * dX+1, Y_GRID * dY+1, DISPLAY_DARKGREY);  
 }
- 
-*/ 
 
 #endif
 
 //------------------ On screen menu system ---------------------
 
 #include "ui.h"
-
-
-// -------------------- Rotary -------------------------------------------
-#ifdef USE_ROTARY
-
-
-// Encode input pins, these should be interrupt enabled inputs
-int R_pinEncA=7;
-int R_pinEncB=6;
- 
-volatile int R_counter = 0; 
-static int R_counter_oud = 0;        
-static byte R_abOld = 0;      
-
-void R_setup() {
-  pinMode(R_pinEncA, INPUT_PULLUP);
-  pinMode(R_pinEncB, INPUT_PULLUP);
-
-  attachInterrupt(R_pinEncA, R_pinAction, CHANGE);
-  attachInterrupt(R_pinEncB, R_pinAction, CHANGE);
-}
-
-
-int R_delta() {
-    int c = R_counter - R_counter_oud;
-    R_counter_oud = R_counter;
-    static int old_pins = 0;
-    int new_pins =  (digitalRead(R_pinEncB) << 1) | digitalRead(R_pinEncA);
-    if (new_pins != old_pins) {
-      old_pins = new_pins;
-/*
-
-   Serial.print ("Rotary = ");
-   Serial.print (digitalRead(R_pinEncA));
-   Serial.print (":");
-   Serial.print (digitalRead(R_pinEncB));
-   Serial.print (" = ");
-   Serial.println (c);
-   Serial.print ("  Rotary2 = ");
-   Serial.print (digitalRead(R_pinEncA));
-   Serial.print (":");
-   Serial.println (digitalRead(R_pinEncB));
-*/
-  }    
-    return (c);
-}
-
-int R_count() {
-    R_counter_oud = R_counter;
-    return (R_counter);
-}
-
-#define DIR_CCW 0x10
-#define DIR_CW 0x20
-
-
-#define R_START 0x0
-
-#define ENABLE_HALF_STEP
-#ifdef ENABLE_HALF_STEP
-// Use the half-step state table (emits a code at 00 and 11)
-#define R_CCW_BEGIN   0x1
-#define R_CW_BEGIN    0x2
-#define R_START_M     0x3
-#define R_CW_BEGIN_M  0x4
-#define R_CCW_BEGIN_M 0x5
-
-const unsigned char ttable[][4] = 
-{
-  // 00                  01              10            11
-  {R_START_M,           R_CW_BEGIN,     R_CCW_BEGIN,  R_START},           // R_START (00)
-  {R_START_M | DIR_CCW, R_START,        R_CCW_BEGIN,  R_START},           // R_CCW_BEGIN
-  {R_START_M | DIR_CW,  R_CW_BEGIN,     R_START,      R_START},           // R_CW_BEGIN
-  {R_START_M,           R_CCW_BEGIN_M,  R_CW_BEGIN_M, R_START},           // R_START_M (11)
-  {R_START_M,           R_START_M,      R_CW_BEGIN_M, R_START | DIR_CW},  // R_CW_BEGIN_M 
-  {R_START_M,           R_CCW_BEGIN_M,  R_START_M,    R_START | DIR_CCW}  // R_CCW_BEGIN_M
-};
-#else
-// Use the full-step state table (emits a code at 00 only)
-#define R_CW_FINAL   0x1
-#define R_CW_BEGIN   0x2
-#define R_CW_NEXT    0x3
-#define R_CCW_BEGIN  0x4
-#define R_CCW_FINAL  0x5
-#define R_CCW_NEXT   0x6
-
-const unsigned char ttable[7][4] = 
-{
-  // 00         01           10           11
-  {R_START,    R_CW_BEGIN,  R_CCW_BEGIN, R_START},           // R_START
-  {R_CW_NEXT,  R_START,     R_CW_FINAL,  R_START | DIR_CW},  // R_CW_FINAL
-  {R_CW_NEXT,  R_CW_BEGIN,  R_START,     R_START},           // R_CW_BEGIN
-  {R_CW_NEXT,  R_CW_BEGIN,  R_CW_FINAL,  R_START},           // R_CW_NEXT
-  {R_CCW_NEXT, R_START,     R_CCW_BEGIN, R_START},           // R_CCW_BEGIN
-  {R_CCW_NEXT, R_CCW_FINAL, R_START,     R_START | DIR_CCW}, // R_CCW_FINAL
-  {R_CCW_NEXT, R_CCW_FINAL, R_CCW_BEGIN, R_START}            // R_CCW_NEXT
-};
-#endif 
-
-
-
-
-
-volatile unsigned char R_state = 0;
-
-
-void R_pinAction() {
-  unsigned char pinstate = (digitalRead(R_pinEncB) << 1) | digitalRead(R_pinEncA);
-  unsigned char pinstate_t = (digitalRead(R_pinEncB) << 1) | digitalRead(R_pinEncA);
-  while (pinstate != pinstate_t) {
-    pinstate = pinstate_t;
-    pinstate_t = (digitalRead(R_pinEncB) << 1) | digitalRead(R_pinEncA);
-  }
-  R_state = ttable[R_state & 0xf][pinstate];  
-//  Serial.print("pinstate = ");
-//  Serial.print(pinstate);
-//  Serial.print(" R_state = ");
-//  Serial.println(R_state);
-  if (R_state & 0x30) {
-    if ((R_state & 0x30) == DIR_CCW)
-      R_counter++;
-    else
-      R_counter--;
-//    Serial.print("r_counter = ");
-//    Serial.println(R_counter);
-  }
-  return;
-}
-
-#endif
 
 ///-------------------------------------------------------- SI4432 start ----------------------------------------------
 
@@ -1270,246 +1142,46 @@ static long old_time;
 
 //---------------- menu system -----------------------
 
-int settingMax = 0;
+int settingMax = -10; //9 drids vertical
 int settingMin = -100;
 int settingAttenuate = 0;
 int settingGenerate = 0;
 int settingBandwidth = 600;
-int settingLevelCal = 0;
+int settingLevelOffset = 0;
 int settingPowerCal = 1;
- 
+int settingPowerGrid = 10;
 
-
-#ifdef USE_ROTARY
-
-const char T_off[]  PROGMEM = "Off";
-const char T_on[]   PROGMEM = "On";
-
-const char* const toggleText[] PROGMEM = {
-  T_off,  //0
-  T_on
-};
-
-
-#define MA_CC 1
-#define MA_CZ 2
-#define MA_IC 3
-#define MA_IZ 4
-#define MA_FR 5
-
-#define menuItem   1
-#define menuAction  2
-#define menuValue   3
-#define menuToggle  4
-
-typedef struct  {
-  const char kind;
-  const char prev;
-  const char next;
-  const char up;
-  const char menuMin;
-  const char menuMax;
-  const PROGMEM char itemText[10];
-} menuType;
-
-
-const menuType menu[] PROGMEM = {
-#define MainMenu  1
-  // 0
-  {   menuItem,   0, 0, 0, MainMenu, 0, "Main"},
-  // 1
-  {  menuAction,MainMenu + 6, MainMenu + 1, 0, MA_FR, 0, "From",},
-  {  menuAction,MainMenu + 0, MainMenu + 2, 0, MA_FR, 1, "To",},
-  {  menuValue, MainMenu + 1, MainMenu + 3, 0, (char)-120, 20, "Max"},
-  {  menuValue, MainMenu + 2, MainMenu + 4, 0, (char)-120, 20, "Min"},
-  {  menuValue, MainMenu + 3, MainMenu + 5, 0, (char)-30, 0, "Attenuate"},
-  {  menuToggle,MainMenu + 4, MainMenu + 6, 0, 0, 1, "Generate"},
-  {  menuAction,MainMenu + 5, MainMenu + 7, 0, MA_FR, 2, "IF",},
-  {  menuValue, MainMenu + 6, MainMenu + 8, 0, (char)-50, +50, "LevelCal",},
-  {  menuValue, MainMenu + 7, MainMenu + 0, 0, (char)-1, 8, "PowerCal",},
-#if 0
-#endif
-};
-
-
-int currentMenu;
-int menuActive;
-//int dataIndex;
-int dirty;
-int stateChange;
-int menuOpen;
-
-void ProcessMenu(int *v = NULL);
-
-void HandleMenu()
+void set_refer_output(int v)
 {
-  switch (currentMenu) {
-  case 3: ProcessMenu (&settingMax); break;
-  case 4: ProcessMenu (&settingMin); break;
-  case 5: ProcessMenu (&settingAttenuate);     
-//    Serial.print(F("Attenuate = "));
-//    Serial.println(settingAttenuate);
-  break;
-  case 6: ProcessMenu (&settingGenerate); break;
-  case 8: ProcessMenu (&settingLevelCal); break;
-  case 9: ProcessMenu (&settingPowerCal); break;
-  default:if (menuActive && stateChange) showFreq(lFreq[dataIndex]); ProcessMenu ((int *)lFreq); break;
-  }
-  buttonEvent = 0;
+  settingPowerCal = v;
 }
 
-void InitMenu()
+void SetRefLevel(int ref)
 {
-  currentMenu = 1;
-  menuActive = false;
-  dataIndex = 0;
-  dirty = false;
-  stateChange = true;
-  menuOpen = false;
-}
-char buffer[16];
-
-void ProcessMenu(int *v)
-{
-  int kind; int n; int p; int u; int mi; 
-  int ma; 
-
-update:
-
-  kind = pgm_read_byte(&(menu[currentMenu].kind));
-  n = pgm_read_byte(&(menu[currentMenu].next));
-  p = pgm_read_byte(&(menu[currentMenu].prev));
-  u = pgm_read_byte(&(menu[currentMenu].up));
-  mi = (char) pgm_read_byte(&(menu[currentMenu].menuMin)); if (mi > 127) mi  -= 256;
-  ma = (char) pgm_read_byte(&(menu[currentMenu].menuMax)); if (ma > 127) ma  -= 256;
-
-  if (stateChange || dirty) {
-/*
-    if (menuOpen)
-      Serial.print(F("Open "));
-    if (menuActive)
-      Serial.print(F("Active "));
-    if (dirty)
-      Serial.print(F("Dirty "));
-    if (stateChange)
-      Serial.print(F("stateChange "));
-    Serial.print(u);
-    Serial.print(F(":["));
-    Serial.print(p);
-    Serial.print(F(":"));
-    Serial.print(n);
-    Serial.print(F("]{min="));
-    Serial.print(mi);
-    Serial.print(F(",max="));
-    Serial.print(ma);
-    Serial.print(F("}:"));
-    Serial.print(currentMenu);
-    Serial.println(F(": Menu entered"));
-*/
-  }
-
-//#endif
-
-#ifdef USE_DISPLAY
-  __FlashStringHelper *ut;
-  ut = ( __FlashStringHelper *) &(menu[u].itemText[0]);
-  __FlashStringHelper *t;
-  t = ( __FlashStringHelper *) &(menu[currentMenu].itemText[0]);
-
-  if (stateChange || dirty) {
-  tft.fillRect(0, 0, tft.width(), oY-2, DISPLAY_BLACK);
-//    clearDisplay();
-    textWhite();        // Draw white text
-    tft.setCursor(0, 0);
-    if (!menuActive) {
-      tft.print(ut);
-      tft.print(':');
-      tft.print(t);   // Show menu text
-    } else {
-      tft.print(t);
-      tft.print(':');
-      //      tft.setCursor(8, 0);
-      if (kind == menuToggle) {
-        strcpy_P(buffer, (char*)pgm_read_word(&(toggleText[(v[dataIndex]) + mi]))); // Toggle text
-        tft.print(buffer);
-      } else if (kind == menuValue) {
-        tft.print(v[dataIndex]);    // Value
-      } else if (kind == menuAction) {
-        //      tft.print((const __FlashStringHelper*)&(v[5])); // Nothing to show
-      }
-      // else do not show anything
-    }
-    sendDisplay();
-    stateChange = false;
-    dirty = false;
-//    if (buttonEvent == 0)
-//      return;
-  }
-#endif
-  // buttonUp, buttonDown, buttonLongDown, buttonBack, buttonRotateUp, buttonRotateDown
-
-//#ifdef USE_ROTARY
-  
-  if (!menuActive) {
-    if (buttonEvent == buttonRotateUp) {
-      currentMenu = n;
-      stateChange = true;
-    } else if (buttonEvent == buttonRotateDown) {
-      currentMenu = p;
-      stateChange = true;
-    } else if (buttonEvent == shortBackClickRelease) {
-      if (u != 0) {
-        currentMenu = u + dataIndex;
-        dataIndex = 0;
-        stateChange = true;
-      }
-    } else if (buttonEvent == shortClickRelease) { // Single click
-      if (kind == menuItem) {
-        currentMenu = mi;
-        dataIndex = ma;
-      } else {
-        if (kind == menuAction)
-          dataIndex = ma;
-        menuActive = true;
-//        Serial.print(currentMenu);
-//        Serial.println(F(": Menu activated"));
-      }
-      stateChange = true;
-    }
-    buttonEvent = 0;
-  } else { // Menu is active
-    if (buttonEvent == shortClickRelease) { // Single click
-      menuActive = false;
-      stateChange = true;
-//      Serial.print(currentMenu);
-//      Serial.println(F(": Menu deactivated"));
-      buttonEvent = 0;
-//      Serial.println(F("Menu Closed"));
-      menuOpen = false; // Stop displaying menu
-    } else 
-    if (kind == menuToggle || kind == menuValue) {
-      if (buttonEvent == buttonRotateDown && v[dataIndex] > mi) {
-        v[dataIndex] -= (kind == menuToggle? 1 : 1);
-        dirty = true;
-      } else if (buttonEvent == buttonRotateUp && v[dataIndex] < ma) {
-        v[dataIndex] += (kind == menuToggle? 1 : 1);
-        dirty = true;
-      }
-      if (buttonEvent) {
-//        Serial.print(v[dataIndex]);
-//        Serial.println(F(": Value changed"));
-      }
-      buttonEvent = 0;
-    } else if (kind == menuAction) {
-      ChangeFrequency((long int *)v);
-      buttonEvent = 0;
-    }
-  }
-//#endif
+  settingMin = ref - (settingMax - settingMin);
+  settingMax =ref;
 }
 
+void SetPowerGrid(int g)
+{
+  settingPowerGrid = g;
+  settingMin = settingMax - 9*g;
+}
 
-#endif
+void SetAttenuation(int a)
+{
+  settingAttenuate = -a;
+}
+
+void SetLevelOffset(int o)
+{
+  settingLevelOffset = o;
+}
+
+void SetRBW(int v)
+{
+  settingBandwidth = v;
+}
 //------------------------------------------
 
 
@@ -1620,64 +1292,126 @@ double peakFreq;
 void displayHisto ()
 {
 //  clearDisplay();
-  DrawCheckerBoard();
 //int settingMax = 0;
 //int settingMin = -120;
-  int delta=settingMax - settingMin;
 
-  // Display levels
+static int old_settingMax = -1;
+static int old_settingMin = -1;
+
+  if (old_settingMax != settingMax || old_settingMin != settingMin) {
+  // Display levels at left of screen
   tft.fillRect(0, 0, oX-2, tft.height(), DISPLAY_BLACK);
   textWhite();
   tft.setCursor(0,oY);             // Start at top-left corner
   tft.println(settingMax);
-  tft.setCursor(0,tft.height() - 8);
+  tft.setCursor(0,tft.height() - 16);
   tft.println(settingMin);
-  tft.setCursor(0,tft.height()/2);
-  tft.println("dB");
+//  tft.setCursor(0,tft.height()/2);
+//  tft.println("dB");
+    old_settingMax = settingMax;
+    old_settingMin = settingMin;
+  }
 
+static  long old_startFreq = -1;
+static  long old_stopFreq = -1;
+
+  if (old_startFreq != startFreq || old_stopFreq != stopFreq) {
   // Dsiplay frequencies
-  tft.fillRect(0, 0, tft.width(), oY-2, DISPLAY_BLACK);
-  tft.setTextColor(DISPLAY_INVERSE);        // Draw white text
-  tft.setCursor(oX+2,0);             // Start at top-left corner
+// Bottom of screen
+  tft.fillRect(0, tft.height()-8, tft.width(), tft.height()-1, DISPLAY_BLACK);
+    tft.setTextColor(DISPLAY_WHITE);        // Draw white text
+  tft.setCursor(oX+2,tft.height()-8);             // Start at top-left corner
   double f = (((double)(startFreq - lastFreq[0]))/ 1000000.0);
-  tft.println(f);
-  tft.setCursor(tft.width() - 36,0);
+  tft.print(f);
+  tft.print("MHz");
+  tft.setCursor(tft.width() - 58,tft.height()-8);
   f = (((double)(stopFreq - lastFreq[0]))/ 1000000.0);
-  tft.println(f);
-  tft.setCursor(tft.width()/2 - 18,0);
-  tft.println("MHz");
+  tft.print(f);
+  tft.print("MHz");
 
+  tft.setCursor(tft.width()/2 - 80 + oX,tft.height()-8);
+  tft.print("center:");
+  f = (((double)((stopFreq - startFreq)/2))/ 1000000.0);
+  tft.print(f);
+  tft.print("MHz");
+  old_startFreq = startFreq;
+  old_stopFreq = stopFreq;
+  }
+
+// Top of screen
+static int old_settingAttenuate = -1000;
+static int old_settingPowerGrid = -1000;
+  if (old_settingAttenuate != settingAttenuate || old_settingPowerGrid != settingPowerGrid) {
+  tft.fillRect(oX+2, 0, oX + 99, oY-2, DISPLAY_BLACK);
+  tft.setCursor(oX + 2,0);             // Start at top-left corner
+  tft.setTextColor(DISPLAY_WHITE);        // Draw white text
+  tft.print("Atten:");
+  tft.print(settingAttenuate);
+  tft.setCursor(oX + 2,8);             // Start at top-left corner
+  tft.print(settingPowerGrid);
+  tft.print("dB/");
+  old_settingAttenuate = settingAttenuate;
+  old_settingPowerGrid = settingPowerGrid;
+  }  
+  
   if (peakLevel > -150) {
-    tft.setCursor(oX + 2,8);             // Start at top-left corner
-    tft.print("Peak is = ");
-    tft.print((int)((peakLevel/ 2.0  - settingAttenuate) - 120.0)+settingLevelCal);
+    tft.fillRect(oX+100, 8, tft.width(), 8-1, DISPLAY_BLACK);
+    tft.setCursor(oX + 100,8);             // Start at top-left corner
+    tft.setTextColor(DISPLAY_WHITE);        // Draw white text
+    tft.print("Max=");
+    tft.print((int)((peakLevel/ 2.0  - settingAttenuate) - 120.0)+settingLevelOffset);
     tft.print("dB, ");
     tft.print(peakFreq/ 1000000.0);
     tft.print("MHz");
   }
 
     
-#define Y_GRIDS 9
+/*
   for (int i=0; i<DISPLAY_POINTS - 1; i++) {
-    double f = ((myData[i] / 2.0  - settingAttenuate) - 120.0);
-    f = (f - settingMin) * Y_GRIDS * dY / delta;
-    if (f >= Y_GRIDS * dY) f = Y_GRIDS * dY-1;
+    int delta=settingMax - settingMin;
+    DrawCheckerBoard(i);
+    double f = ((myData[i] / 2.0  - settingAttenuate) - 120.0) + settingLevelOffset;
+    f = (f - settingMin) * Y_GRID * dY / delta;
+    if (f >= Y_GRID * dY) f = Y_GRID * dY-1;
     if (f < 0) f = 0;
-    double f2 = ((myData[i+1] / 2.0  - settingAttenuate) - 120.0);
-    f2 = (f2 - settingMin) * Y_GRIDS * dY / delta;
-    if (f2 >= Y_GRIDS * dY) f2 = Y_GRIDS * dY-1;
+    double f2 = ((myData[i+1] / 2.0  - settingAttenuate) - 120.0) + settingLevelOffset;
+    f2 = (f2 - settingMin) * Y_GRID * dY / delta;
+    if (f2 >= Y_GRID * dY) f2 = Y_GRID * dY-1;
     if (f2 < 0) f2 = 0;
   int x = i;
-  int Y1 = Y_GRIDS * dY - 1 - (int)f;
-  int Y2 = Y_GRIDS * dY - 1 - (int)f2;
+  int Y1 = Y_GRID * dY - 1 - (int)f;
+  int Y2 = Y_GRID * dY - 1 - (int)f2;
   tft.drawLine(x+oX, oY+Y1, x+oX+1, oY+Y2, DISPLAY_YELLOW);
-  tft.drawLine(x+oX, oY+Y1+1, x+oX+1, oY+Y2+1, DISPLAY_YELLOW);
+//  tft.drawLine(x+oX, oY+Y1+1, x+oX+1, oY+Y2, DISPLAY_YELLOW);
   }
  
 
-
+*/
   sendDisplay();
 }
+
+void DisplayPoint(int i)
+{
+    DrawCheckerBoard(i);
+    if (i == 0)
+      return;
+    int delta=settingMax - settingMin;
+    double f = ((myData[i-1] / 2.0  - settingAttenuate) - 120.0) + settingLevelOffset;
+    f = (f - settingMin) * Y_GRID * dY / delta;
+    if (f >= Y_GRID * dY) f = Y_GRID * dY-1;
+    if (f < 0) f = 0;
+    double f2 = ((myData[i] / 2.0  - settingAttenuate) - 120.0) + settingLevelOffset;
+    f2 = (f2 - settingMin) * Y_GRID * dY / delta;
+    if (f2 >= Y_GRID * dY) f2 = Y_GRID * dY-1;
+    if (f2 < 0) f2 = 0;
+  int x = i-1;
+  int Y1 = Y_GRID * dY - 1 - (int)f;
+  int Y2 = Y_GRID * dY - 1 - (int)f2;
+  tft.drawLine(x+oX, oY+Y1, x+oX+1, oY+Y2, DISPLAY_YELLOW);
+//  tft.drawLine(x+oX, oY+Y1+1, x+oX+1, oY+Y2, DISPLAY_YELLOW);
+  sendDisplay();
+}
+
 #endif
 
 void setup() 
@@ -1712,7 +1446,7 @@ void setup()
 
   }
 #endif
-#ifdef USE_ILI9341
+#if USE_ILI9341 || USE_ILI9488
   tft.begin();
   tft.setRotation(1);
   ts.begin();
@@ -1723,13 +1457,6 @@ clearDisplay();
   // the library initializes this with an Adafruit splash screen.
 //  sendDisplay();
 //  displayHisto();
-#ifdef USE_ROTARY
-  R_setup();
-#define ENABLE_PULLUPS 1
-  pinMode(buttonPin, (ENABLE_PULLUPS ? INPUT_PULLUP : INPUT)); 
-  pinMode(backButtonPin, (ENABLE_PULLUPS ? INPUT_PULLUP : INPUT)); 
-  InitMenu();
-#endif
   PE4302_init();
   PE4302_Write_Byte(0);
 #ifdef USE_SI4463
@@ -1772,6 +1499,52 @@ void setFreq(int V, unsigned long freq)
   }
 }
 
+void SetRX(int p)
+{
+  RX = p;
+        if (RX == 3) {  //Both on RX
+          SI4432_Sel = 0;
+          SI4432_Write_Byte(0x7, 0x0B); // start TX
+          SI4432_Write_Byte(0x6D, 0x1F);//Set low power
+          SI4432_Sel = 1;
+          SI4432_Write_Byte(0x7, 0x0B); // start TX
+          SI4432_Write_Byte(0x6D, 0x1F);//Set full power
+        } else {
+          if (RX == 0) {
+            SI4432_Sel = 0;
+            SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
+
+            SI4432_Sel = 1;
+            SI4432_Write_Byte(0x7, 0x0B); // start TX
+            SI4432_Write_Byte(0x6D, 0x1C + (drive - 2 )/2);//Set full power
+            
+          } else if (RX == 1) {
+            SI4432_Sel = 0; // both as receiver to avoid spurs
+            SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
+
+            SI4432_Sel = 1;
+            SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
+            
+          } else if (RX == 2) { // SI4463 as receiver
+            SI4432_Sel = 0;
+            SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
+
+            SI4432_Sel = 1;
+            SI4432_Write_Byte(0x7, 0x0B); // start TX
+            SI4432_Write_Byte(0x6D, 0x1C + (drive - 2 )/2);//Set full power
+          }
+#if 0 // compact
+          SI4432_Sel = (RX ? 1 : 0);
+          SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
+
+          SI4432_Sel = (RX ? 0 : 1);
+          SI4432_Write_Byte(0x7, 0x0B); // start TX
+          SI4432_Write_Byte(0x6D, 0x1C + (drive - 2 )/2);//Set full power
+#endif
+        }
+  
+}
+
 int autoSweepStep = 0;
 long autoSweepFreq = 0;
 long autoSweepFreqStep = 0;
@@ -1796,116 +1569,14 @@ void loop()
     autoSweepStep = 0;
     return;
   }
-#ifdef USE_ROTARY
 
-  if( /*standalone && */ Serial.available() == 0) // Serial has priority
-  {
-//-------------------button handling --------------------
-  int x = R_delta();
-  int reading = digitalRead(buttonPin);
-  int reading2 = digitalRead(backButtonPin);
-  if (reading != lastButtonRead || reading2 != lastBackButtonRead ) {
-    lastDebounceTime = millis();
-  }
-  lastButtonRead = reading;
-  lastBackButtonRead = reading2;
-
-  buttonEvent = 0;
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    switch(buttonState) {
-    case buttonUp: 
-      if (reading == LOW) 
-      {
-        buttonState = buttonDown;
-      }
-      break;
-    case buttonDown: 
-      if (reading == HIGH)
-      {
-        buttonState = buttonUp;
-        buttonEvent = shortClickRelease;
-      }
-      if ((millis() - lastDebounceTime) > longPressDelay) 
-      {
-        buttonState = buttonLongDown;
-        buttonEvent = longClick;
-      }
-      break;
-    case buttonLongDown: 
-      if (reading == HIGH)
-      {
-        buttonState = buttonUp;
-        buttonEvent = longClickRelease;
-      }
-      break;
-
-    }
-    switch(backButtonState) {
-    case buttonUp: 
-      if (reading2 == LOW) 
-      {
-        backButtonState = buttonDown;
-      }
-      break;
-    case buttonDown: 
-      if (reading2 == HIGH)
-      {
-        backButtonState = buttonUp;
-        buttonEvent = shortBackClickRelease;
-      }
-      if ((millis() - lastDebounceTime) > longPressDelay) 
-      {
-        backButtonState = buttonLongDown;
-        buttonEvent = longBackClick;
-      }
-      break;
-    case buttonLongDown: 
-      if (reading2 == HIGH)
-      {
-        backButtonState = buttonUp;
-        buttonEvent = longBackClickRelease;
-      }
-      break;
-
-    }
-  }
-  if (x) 
-  {
-    Serial.print("Rotaryevent: ");
-    Serial.println(x);
-    long new_time = millis();
-    if (new_time - old_time > 50)
-      incr = 1;
-    else if (new_time - old_time > 20)
-      incr = 5;
-    else
-      incr = 20;
-    old_time = new_time;
-    if (x > 0)
-      buttonEvent = buttonRotateUp;
-    else
-      buttonEvent = buttonRotateDown;
-  }  
-  if (buttonEvent != 0) {
- //   Serial.print("Buttonevent: ");
- //   Serial.println(buttonEvent);
-  }
-  if (buttonEvent || stateChange|| dirty) {
-    if (buttonEvent && !menuOpen) {
-      menuOpen = true;
-      buttonEvent = 0;
-      menuActive = false;
-      dataIndex = 0;
-      dirty = true;
-      stateChange = true;
-//      Serial.println(F("Menu open"));
-    } 
-    HandleMenu();
-  }
-
-  if (!menuOpen && standalone) {
+  if (standalone) {
 //    Serial.print("AutoSweepStep: ");
 //    Serial.println(autoSweepStep);
+    int ownrbw = settingBandwidth;
+    if (ownrbw == 0)
+      ownrbw = ((float)(lFreq[1] - lFreq[0]))/DISPLAY_POINTS/1000.0;
+
     if (autoSweepStep == 0) {
       autoSweepFreq = lFreq[0];
       autoSweepFreqStep = (lFreq[1] - lFreq[0])/DISPLAY_POINTS;
@@ -1916,9 +1587,8 @@ void loop()
       int p = - settingAttenuate * 2;
       PE4302_Write_Byte(p);
       SetPowerReference(settingPowerCal);
-      settingBandwidth = ((float)(lFreq[1] - lFreq[0]))/DISPLAY_POINTS/1000.0;
       SI4432_Sel = 0;
-      SI4432_SET_RBW(settingBandwidth);
+      SI4432_SET_RBW(ownrbw);
       SI4432_Sel = 1;
       SI4432_Write_Byte(0x6D, 0x1C + (drive - 2 )/2);//Set full power
 
@@ -1929,8 +1599,8 @@ void loop()
     setFreq (1, lFreq[2] + autoSweepFreq);
     SI4432_Sel=0;
     myData[autoSweepStep] = SI4432_RSSI();
-    if (settingBandwidth > 500) {
-      int subSteps = (settingBandwidth / 500) - 1;
+    if (ownrbw > 500) {
+      int subSteps = (ownrbw / 500) - 1;
       while (subSteps > 0) {
 //Serial.print("substeps = ");
 //Serial.println(subSteps);
@@ -1945,6 +1615,7 @@ void loop()
         subSteps--;
       }
     }
+    DisplayPoint(autoSweepStep);
 
     if (autoSweepFreq > 1000000) {
       if (peakLevel < myData[autoSweepStep]) {
@@ -1965,8 +1636,8 @@ void loop()
 #endif
     }  
    }
-  }
-#endif
+
+
 //--------------------------------  
   inData = 0;
 
@@ -2297,47 +1968,7 @@ void loop()
         PE4302_Write_Byte(p);
       } else if (parameter == 6) {
         RX = lastParameter[6];
-
-        if (RX == 3) {  //Both on RX
-          SI4432_Sel = 0;
-          SI4432_Write_Byte(0x7, 0x0B); // start TX
-          SI4432_Write_Byte(0x6D, 0x1F);//Set low power
-          SI4432_Sel = 1;
-          SI4432_Write_Byte(0x7, 0x0B); // start TX
-          SI4432_Write_Byte(0x6D, 0x1F);//Set full power
-        } else {
-          if (RX == 0) {
-            SI4432_Sel = 0;
-            SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
-
-            SI4432_Sel = 1;
-            SI4432_Write_Byte(0x7, 0x0B); // start TX
-            SI4432_Write_Byte(0x6D, 0x1C + (drive - 2 )/2);//Set full power
-            
-          } else if (RX == 1) {
-            SI4432_Sel = 0; // both as receiver to avoid spurs
-            SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
-
-            SI4432_Sel = 1;
-            SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
-            
-          } else if (RX == 2) { // SI4463 as receiver
-            SI4432_Sel = 0;
-            SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
-
-            SI4432_Sel = 1;
-            SI4432_Write_Byte(0x7, 0x0B); // start TX
-            SI4432_Write_Byte(0x6D, 0x1C + (drive - 2 )/2);//Set full power
-          }
-#if 0 // compact
-          SI4432_Sel = (RX ? 1 : 0);
-          SI4432_Write_Byte(0x07, 0x07);// Enable receiver chain
-
-          SI4432_Sel = (RX ? 0 : 1);
-          SI4432_Write_Byte(0x7, 0x0B); // start TX
-          SI4432_Write_Byte(0x6D, 0x1C + (drive - 2 )/2);//Set full power
-#endif
-        }
+        SetRX(lastParameter[6]);
       }
      }
      Serial.print("Parameter  ");

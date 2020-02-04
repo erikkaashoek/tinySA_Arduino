@@ -50,6 +50,7 @@ typedef struct {
   uint32_t previous_value;
 } uistat_t;
 
+int output_status=0;
 
 int cal_status;
 #define CALSTAT_LOAD (1<<0)
@@ -154,7 +155,7 @@ marker_t markers[MARKER_COUNT];
 int active_marker;
 
 enum {
-  KM_START, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_SCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY
+  KM_START, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_SCALE, KM_REFPOS, KM_ATTENUATION, KM_OFFSET, KM_SCALEDELAY
 };
 
 uint8_t ui_mode = UI_NORMAL;
@@ -233,6 +234,7 @@ static void menu_move_back(void);
 static void menu_calop_cb(int item);
 static void menu_caldone_cb(int item);
 static void menu_save_cb(int item);
+static void menu_refer_cb(int item);
 static void menu_cal2_cb(int item);
 static void menu_trace_cb(int item);
 static void menu_format2_cb(int item);
@@ -247,15 +249,30 @@ static void menu_marker_op_cb(int item);
 static void menu_recall_cb(int item);
 static void menu_dfu_cb(int item);
 static void menu_config_cb(int item);
+static void menu_output_cb(int item);
+static void menu_rbw_cb(int item);
 
 // ===[MENU DEFINITION]=========================================================
-static const menuitem_t menu_calop[] = {
-  MENUITEM_FUNC("OPEN",     menu_calop_cb),
-  MENUITEM_FUNC("SHORT",    menu_calop_cb),
-  MENUITEM_FUNC("LOAD",     menu_calop_cb),
-  MENUITEM_FUNC("ISOLN",    menu_calop_cb),
-  MENUITEM_FUNC("THRU",     menu_calop_cb),
-  MENUITEM_FUNC("DONE",     menu_caldone_cb),
+static const menuitem_t menu_rbw[] = {
+  MENUITEM_FUNC("  AUTO",   menu_rbw_cb),
+  MENUITEM_FUNC("  3kHz",   menu_rbw_cb),
+  MENUITEM_FUNC(" 10kHz",   menu_rbw_cb),
+  MENUITEM_FUNC(" 30kHz",   menu_rbw_cb),
+  MENUITEM_FUNC("100kHz",   menu_rbw_cb),
+  MENUITEM_FUNC("300kHz",   menu_rbw_cb),
+  MENUITEM_BACK,
+  MENUITEM_END
+};
+
+static const menuitem_t menu_refer[] = {
+  MENUITEM_FUNC("OFF"  ,   menu_refer_cb),
+  MENUITEM_FUNC("30MHz",   menu_refer_cb),
+  MENUITEM_FUNC("15MHz",   menu_refer_cb),
+  MENUITEM_FUNC("10MHz",   menu_refer_cb),
+  MENUITEM_FUNC("4MHz" ,   menu_refer_cb),
+  MENUITEM_FUNC("3MHz" ,   menu_refer_cb),
+  MENUITEM_FUNC("2MHz" ,   menu_refer_cb),
+  MENUITEM_FUNC("1MHz" ,   menu_refer_cb),
   MENUITEM_BACK,
   MENUITEM_END
 };
@@ -273,7 +290,7 @@ static const menuitem_t menu_save[] = {
 };
 
 static const menuitem_t menu_cal[] = {
-  MENUITEM_MENU("CALIBRATE",    menu_calop),
+//  MENUITEM_MENU("CALIBRATE",    menu_calop),
   MENUITEM_MENU("SAVE",         menu_save),
   MENUITEM_FUNC("RESET",        menu_cal2_cb),
   MENUITEM_FUNC("CORRECTION",   menu_cal2_cb),
@@ -319,7 +336,8 @@ static const menuitem_t menu_format[] = {
 static const menuitem_t menu_scale[] = {
   MENUITEM_FUNC("SCALE/DIV",     menu_scale_cb),
   MENUITEM_FUNC("\2REF\0LEVEL",  menu_scale_cb),
-  MENUITEM_FUNC("ATTENUATOR",    menu_scale_cb),
+  MENUITEM_FUNC("ATTEN",         menu_scale_cb),
+  MENUITEM_FUNC("OFFSET",        menu_scale_cb),
   MENUITEM_FUNC("RBW",           menu_scale_cb),
   MENUITEM_BACK,
   MENUITEM_END
@@ -411,11 +429,19 @@ static const menuitem_t menu_dfu[] = {
   MENUITEM_END
 };
 
+static const menuitem_t menu_output[] = {
+  MENUITEM_MENU("REFERENCE",    menu_refer),
+  MENUITEM_FUNC("GENERATOR",    menu_output_cb),
+  MENUITEM_BACK,
+  MENUITEM_END
+};
+
+
 static const menuitem_t menu_config[] = {
   MENUITEM_FUNC("TOUCH CAL",    menu_config_cb),
   MENUITEM_FUNC("TOUCH TEST",   menu_config_cb),
-  MENUITEM_FUNC("SAVE",         menu_config_cb),
   MENUITEM_FUNC("VERSION",      menu_config_cb),
+  MENUITEM_MENU("RBW", menu_rbw),
   MENUITEM_MENU(S_RARROW"DFU",  menu_dfu),
   MENUITEM_BACK,
   MENUITEM_END
@@ -423,8 +449,9 @@ static const menuitem_t menu_config[] = {
 
 static const menuitem_t menu_top[] = {
   MENUITEM_MENU("FREQUENCY",  menu_stimulus),
-  MENUITEM_MENU("SCALE", menu_scale),
-  MENUITEM_MENU("CONFIG",    menu_config),
+  MENUITEM_MENU("SCALE",      menu_scale),
+  MENUITEM_MENU("OUTPUT",     menu_output),
+  MENUITEM_MENU("CONFIG",     menu_config),
   MENUITEM_END,
 
   MENUITEM_MENU("DISPLAY",   menu_display),
@@ -752,6 +779,22 @@ static void menu_caldone_cb(int item)
   menu_push_submenu(menu_save);
 }
 
+static void menu_output_cb(int item)
+{
+  switch (item) {
+  case 1: // Toggle generate
+    output_status = !output_status;
+    if (output_status)
+      SetRX(3);
+    else
+      SetRX(0);
+    draw_menu();
+    break;
+  }
+  //menu_move_back();
+}
+
+
 static void menu_cal2_cb(int item)
 {
   switch (item) {
@@ -799,11 +842,6 @@ static void menu_config_cb(int item)
       draw_menu();
       break;
   case 2:
- //     config_save();
-      menu_move_back();
-      ui_mode_normal();
-      break;
-  case 3:
       show_version();
       redraw_frame();
       request_to_redraw_grid();
@@ -830,6 +868,28 @@ static void menu_save_cb(int item)
     draw_cal_status();
   }
 }
+
+static void menu_refer_cb(int item)
+{
+Serial.println(item);
+  set_refer_output(item-1); 
+  menu_move_back();
+  ui_mode_normal();
+  draw_cal_status();
+}
+
+
+int rbwsel[]={0,3,10,30,100,300};
+
+static void menu_rbw_cb(int item)
+{
+  SetRBW(rbwsel[item]); 
+  menu_move_back();
+  ui_mode_normal();
+  draw_cal_status();
+}
+
+
 
 static void choose_active_trace(void)
 {
@@ -965,10 +1025,10 @@ static void menu_transform_cb(int item)
     case 5:
       status = btn_wait_release();
       if (status & EVT_BUTTON_DOWN_LONG) {
-        ui_mode_numeric(KM_VELOCITY_FACTOR);
+        ui_mode_numeric(KM_OFFSET);
 //        ui_process_numeric();
       } else {
-        ui_mode_keypad(KM_VELOCITY_FACTOR);
+        ui_mode_keypad(KM_OFFSET);
         ui_process_keypad();
       }
       break;
@@ -1052,13 +1112,13 @@ static void menu_marker_op_cb(int item)
 
   switch (item) {
   case 1: /* MARKER->START */
-//    set_sweep_frequency(ST_START, freq);
+    set_sweep_frequency(ST_START, freq);
     break;
   case 2: /* MARKER->STOP */
-//    set_sweep_frequency(ST_STOP, freq);
+    set_sweep_frequency(ST_STOP, freq);
     break;
   case 3: /* MARKER->CENTER */
-//    set_sweep_frequency(ST_CENTER, freq);
+    set_sweep_frequency(ST_CENTER, freq);
     break;
   case 4: /* MARKERS->SPAN */
     {
@@ -1300,6 +1360,24 @@ static const keypads_t keypads_time[] = {
   { 0, 0, -1 }
 };
 
+static const keypads_t keypads_level[] = {
+  { KP_X(1), KP_Y(3), KP_PERIOD },
+  { KP_X(0), KP_Y(3), 0 },
+  { KP_X(0), KP_Y(2), 1 },
+  { KP_X(1), KP_Y(2), 2 },
+  { KP_X(2), KP_Y(2), 3 },
+  { KP_X(0), KP_Y(1), 4 },
+  { KP_X(1), KP_Y(1), 5 },
+  { KP_X(2), KP_Y(1), 6 },
+  { KP_X(0), KP_Y(0), 7 },
+  { KP_X(1), KP_Y(0), 8 },
+  { KP_X(2), KP_Y(0), 9 },
+  { KP_X(3), KP_Y(2), KP_MINUS },  
+  { KP_X(3), KP_Y(3), KP_X1 },
+  { KP_X(2), KP_Y(3), KP_BS },
+  { 0, 0, -1 }
+};
+
 static const keypads_t * const keypads_mode_tbl[] = {
   keypads_freq, // start
   keypads_freq, // stop
@@ -1307,14 +1385,14 @@ static const keypads_t * const keypads_mode_tbl[] = {
   keypads_freq, // span
   keypads_freq, // cw freq
   keypads_scale, // scale
-  keypads_scale, // refpos
-  keypads_time, // electrical delay
-  keypads_scale, // velocity factor
+  keypads_level, // refpos
+  keypads_scale, // attenuation
+  keypads_level, // power offset
   keypads_time // scale of delay
 };
 
 static const char * const keypad_mode_label[] = {
-  "START", "STOP", "CENTER", "SPAN", "CW FREQ", "SCALE", "REFPOS", "EDELAY", "VELOCITY%", "DELAY"
+  "START", "STOP", "CENTER", "SPAN", "CW FREQ", "SCALE", "REFPOS", "ATTEN", "OFFSET", "DELAY"
 };
 
 static void draw_keypad(void)
@@ -1407,6 +1485,7 @@ static void menu_item_modify_attribute(
       *bg = 0x0000;
       *fg = 0xffff;
     }   
+#if 0 
   } else if (menu == menu_calop) {
     if ((item == 0 && (cal_status & CALSTAT_OPEN))
         || (item == 1 && (cal_status & CALSTAT_SHORT))
@@ -1417,6 +1496,7 @@ static void menu_item_modify_attribute(
       *bg = 0x0000;
       *fg = 0xffff;
     }
+#endif
   } else if (menu == menu_stimulus) {
     if (item == 5 /* PAUSE */ && !sweep_enabled) {
       *bg = 0x0000;
@@ -1429,6 +1509,11 @@ static void menu_item_modify_attribute(
     }
   } else if (menu == menu_transform) {
   } else if (menu == menu_transform_window) {
+  } else if (menu == menu_output) {
+    if (item==1 && output_status) {
+      *bg = 0x0000;
+      *fg = 0xffff;
+  }
   }
 }
 
@@ -1576,10 +1661,10 @@ static void fetch_numeric_target(void)
   case KM_REFPOS:
 //    uistat.value = get_trace_refpos(uistat.current_trace) * 1000;
     break;
-  case KM_EDELAY:
+  case KM_ATTENUATION:
 //    uistat.value = get_electrical_delay();
     break;
-  case KM_VELOCITY_FACTOR:
+  case KM_OFFSET:
 //    uistat.value = velocity_factor;
     break;
   case KM_SCALEDELAY:
@@ -1622,10 +1707,10 @@ static void set_numeric_value(void)
   case KM_REFPOS:
     set_trace_refpos(uistat.current_trace, uistat.value / 1000.0);
     break;
-  case KM_EDELAY:
+  case KM_ATTENUATION:
     set_electrical_delay(uistat.value);
     break;
-  case KM_VELOCITY_FACTOR:
+  case KM_OFFSET:
     velocity_factor = uistat.value;
     break;
   }
@@ -1835,16 +1920,16 @@ static int keypad_click(int key)
       set_sweep_frequency(ST_CW, (int32_t)value);
       break;
     case KM_SCALE:
-//      set_trace_scale(uistat.current_trace, value);
+      SetPowerGrid(value);
       break;
     case KM_REFPOS:
-//      set_trace_refpos(uistat.current_trace, value);
+      SetRefLevel(value);
       break;
-    case KM_EDELAY:
-//      set_electrical_delay(value); // pico seconds
+    case KM_ATTENUATION:
+      SetAttenuation(value);
       break;
-    case KM_VELOCITY_FACTOR:
-//      velocity_factor = (uint8_t)value;
+    case KM_OFFSET:
+      SetLevelOffset(value);
       break;
     case KM_SCALEDELAY:
 //      set_trace_scale(uistat.current_trace, value * 1e-12); // pico second

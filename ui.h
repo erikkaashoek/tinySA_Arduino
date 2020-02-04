@@ -11,6 +11,13 @@ void set_sweep_frequency(int type, int32_t frequency);
 uint32_t get_sweep_frequency(int type);
 void clearDisplay(void);
 void ui_process_touch(void);
+void SetPowerGrid(int);
+void SetRefLevel(int);
+void set_refer_output(int);
+void SetAttenuation(int);
+void SetLevelOffset(int);
+void SetRX(int);
+void SetRBW(int);
 
 enum {
   UI_NORMAL, UI_MENU, UI_NUMERIC, UI_KEYPAD

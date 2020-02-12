@@ -155,7 +155,7 @@ marker_t markers[MARKER_COUNT];
 int active_marker;
 
 enum {
-  KM_START, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_SCALE, KM_REFPOS, KM_ATTENUATION, KM_OFFSET, KM_SCALEDELAY
+  KM_START, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_SCALE, KM_REFPOS, KM_ATTENUATION, KM_ACTUALPOWER, KM_SCALEDELAY
 };
 
 uint8_t ui_mode = UI_NORMAL;
@@ -235,6 +235,7 @@ static void menu_calop_cb(int item);
 static void menu_caldone_cb(int item);
 static void menu_save_cb(int item);
 static void menu_refer_cb(int item);
+static void menu_refer_cb2(int item);
 static void menu_cal2_cb(int item);
 static void menu_trace_cb(int item);
 static void menu_format2_cb(int item);
@@ -251,8 +252,41 @@ static void menu_dfu_cb(int item);
 static void menu_config_cb(int item);
 static void menu_output_cb(int item);
 static void menu_rbw_cb(int item);
+static void menu_dBper_cb(int item);
+static void menu_autosettings_cb(int item);
+static void menu_average_cb(int item);
+static void menu_spur_cb(int item);
+static void menu_actualpower_cb(int item);
+static void menu_storage_cb(int item);
 
 // ===[MENU DEFINITION]=========================================================
+
+static const menuitem_t menu_average[] = {
+  MENUITEM_FUNC("OFF",   menu_average_cb),
+  MENUITEM_FUNC("MIN",   menu_average_cb),
+  MENUITEM_FUNC("MAX",   menu_average_cb),
+  MENUITEM_FUNC(" 2 ",   menu_average_cb),
+  MENUITEM_FUNC(" 4 ",   menu_average_cb),
+  MENUITEM_FUNC(" 8 ",   menu_average_cb),
+  MENUITEM_BACK,
+  MENUITEM_END
+};
+
+static const menuitem_t menu_storage[] = {
+  MENUITEM_FUNC("STORE",    menu_storage_cb),
+  MENUITEM_FUNC("CLEAR",    menu_storage_cb),
+  MENUITEM_FUNC("SUBTRACT", menu_storage_cb),
+  MENUITEM_BACK,
+  MENUITEM_END
+};
+
+static const menuitem_t menu_spur[] = {
+  MENUITEM_FUNC("OFF",   menu_spur_cb),
+  MENUITEM_FUNC("ON",    menu_spur_cb),
+  MENUITEM_BACK,
+  MENUITEM_END
+};
+
 static const menuitem_t menu_rbw[] = {
   MENUITEM_FUNC("  AUTO",   menu_rbw_cb),
   MENUITEM_FUNC("  3kHz",   menu_rbw_cb),
@@ -264,18 +298,17 @@ static const menuitem_t menu_rbw[] = {
   MENUITEM_END
 };
 
-static const menuitem_t menu_refer[] = {
-  MENUITEM_FUNC("OFF"  ,   menu_refer_cb),
-  MENUITEM_FUNC("30MHz",   menu_refer_cb),
-  MENUITEM_FUNC("15MHz",   menu_refer_cb),
-  MENUITEM_FUNC("10MHz",   menu_refer_cb),
-  MENUITEM_FUNC("4MHz" ,   menu_refer_cb),
-  MENUITEM_FUNC("3MHz" ,   menu_refer_cb),
-  MENUITEM_FUNC("2MHz" ,   menu_refer_cb),
-  MENUITEM_FUNC("1MHz" ,   menu_refer_cb),
+int menu_dBper_value[]={1,2,5,10,20};
+static const menuitem_t menu_dBper[] = {
+  MENUITEM_FUNC("  1dB/",   menu_dBper_cb),
+  MENUITEM_FUNC("  2dB/",   menu_dBper_cb),
+  MENUITEM_FUNC("  5dB/",   menu_dBper_cb),
+  MENUITEM_FUNC(" 10dB/",   menu_dBper_cb),
+  MENUITEM_FUNC(" 20dB/",   menu_dBper_cb),
   MENUITEM_BACK,
   MENUITEM_END
 };
+
 
 static const menuitem_t menu_save[] = {
   MENUITEM_FUNC("SAVE 0",   menu_save_cb),
@@ -333,12 +366,33 @@ static const menuitem_t menu_format[] = {
   MENUITEM_END
 };
 
+static const menuitem_t menu_refer2[] = {
+  MENUITEM_FUNC("3MHz" ,   menu_refer_cb2),
+  MENUITEM_FUNC("2MHz" ,   menu_refer_cb2),
+  MENUITEM_FUNC("1MHz" ,   menu_refer_cb2),
+  MENUITEM_BACK,
+  MENUITEM_END
+};
+
+int menu_refer_value[]={-1,0,1,2,3,4,5,6};
+static const menuitem_t menu_refer[] = {
+  MENUITEM_FUNC("OFF"  ,   menu_refer_cb),
+  MENUITEM_FUNC("30MHz",   menu_refer_cb),
+  MENUITEM_FUNC("15MHz",   menu_refer_cb),
+  MENUITEM_FUNC("10MHz",   menu_refer_cb),
+  MENUITEM_FUNC("4MHz" ,   menu_refer_cb),
+  MENUITEM_MENU(S_RARROW" MORE", menu_refer2),  
+  MENUITEM_BACK,
+  MENUITEM_END
+};
+
 static const menuitem_t menu_scale[] = {
-  MENUITEM_FUNC("SCALE/DIV",     menu_scale_cb),
+  MENUITEM_MENU("SCALE/DIV",     menu_dBper),
   MENUITEM_FUNC("\2REF\0LEVEL",  menu_scale_cb),
   MENUITEM_FUNC("ATTEN",         menu_scale_cb),
-  MENUITEM_FUNC("OFFSET",        menu_scale_cb),
-  MENUITEM_FUNC("RBW",           menu_scale_cb),
+  MENUITEM_MENU("AVERAGE",       menu_average),
+  MENUITEM_MENU("\2SPUR\0REDUCTION",menu_spur),
+  MENUITEM_MENU("RBW",           menu_rbw),
   MENUITEM_BACK,
   MENUITEM_END
 };
@@ -441,15 +495,18 @@ static const menuitem_t menu_config[] = {
   MENUITEM_FUNC("TOUCH CAL",    menu_config_cb),
   MENUITEM_FUNC("TOUCH TEST",   menu_config_cb),
   MENUITEM_FUNC("VERSION",      menu_config_cb),
-  MENUITEM_MENU("RBW", menu_rbw),
+  MENUITEM_FUNC("\2ACTUAL\0POWER",menu_actualpower_cb),
+//  MENUITEM_MENU("RBW", menu_rbw),
   MENUITEM_MENU(S_RARROW"DFU",  menu_dfu),
   MENUITEM_BACK,
   MENUITEM_END
 };
 
 static const menuitem_t menu_top[] = {
-  MENUITEM_MENU("FREQUENCY",  menu_stimulus),
-  MENUITEM_MENU("SCALE",      menu_scale),
+  MENUITEM_FUNC("\2AUTO\0SETTINGS",  menu_autosettings_cb),
+  MENUITEM_MENU("SCAN",       menu_stimulus),
+  MENUITEM_MENU("DISPLAY",    menu_scale),
+  MENUITEM_MENU("STORAGE",    menu_storage),
   MENUITEM_MENU("OUTPUT",     menu_output),
   MENUITEM_MENU("CONFIG",     menu_config),
   MENUITEM_END,
@@ -495,6 +552,7 @@ static int touch_status(void)
 
 int  btn_wait_release(void)
 {
+  return(0);
   touch_wait_release();
   return(EVT_TOUCH_RELEASED);
 }
@@ -702,8 +760,8 @@ show_logo(void)
   ili9341_drawstring_size("tinySA", x+60, y, RGBHEX(0x0000FF), 0x0000, 4);
   y += 25;
 
-  ili9341_drawstring_size("NANOVNA.COM", x+100, y += 10, 0xffff, 0x0000, 2);
-  ili9341_drawstring_5x7("https://github.com/hugen79/NanoVNA-H", x, y += 20, 0xffff, 0x0000);
+  ili9341_drawstring_size("tiniSA.org", x+100, y += 10, 0xffff, 0x0000, 2);
+  ili9341_drawstring_5x7("https://github.com/erik_kaashoek/tinySA", x, y += 20, 0xffff, 0x0000);
   ili9341_drawstring_5x7("Based on edy555 design", x, y += 10, 0xffff, 0x0000);
   ili9341_drawstring_5x7("2016-2019 Copyright @edy555", x, y += 10, 0xffff, 0x0000);
   ili9341_drawstring_5x7("Licensed under GPL. See: https://github.com/ttrftech/NanoVNA", x, y += 10, 0xffff, 0x0000);
@@ -740,9 +798,19 @@ void draw_cal_status()
   
 }
 
-void redraw_frame() {}
-void request_to_redraw_grid() { clearDisplay();}
-void update_grid() {}
+void redraw_frame() {
+  AllDirty();
+  redrawHisto();
+}
+void request_to_redraw_grid() { 
+  clearDisplay(); 
+  AllDirty();
+  redrawHisto();
+}
+void update_grid() {
+    AllDirty();
+  redrawHisto();
+}
 void draw_frequencies() {}
 
 
@@ -784,14 +852,27 @@ static void menu_output_cb(int item)
   switch (item) {
   case 1: // Toggle generate
     output_status = !output_status;
-    if (output_status)
-      SetRX(3);
-    else
-      SetRX(0);
+    SetGenerate(output_status);
     draw_menu();
     break;
   }
   //menu_move_back();
+}
+
+
+static void menu_autosettings_cb(int item)
+{
+    set_sweep_frequency(ST_START, (int32_t) 0);
+    set_sweep_frequency(ST_STOP, (int32_t) 250000000);
+    SetPowerGrid(10);
+    SetRefLevel(-10);
+    set_refer_output(1);
+    SetAttenuation(0);
+    SetPowerLevel(100); // Reset
+    SetRBW(0);
+    SetRX(0);
+  menu_move_back();
+  ui_mode_normal();
 }
 
 
@@ -871,8 +952,51 @@ static void menu_save_cb(int item)
 
 static void menu_refer_cb(int item)
 {
-Serial.println(item);
-  set_refer_output(item-1); 
+//Serial.println(item);
+  set_refer_output(menu_refer_value[item]); 
+  menu_move_back();
+  ui_mode_normal();
+  draw_cal_status();
+}
+
+static void menu_refer_cb2(int item)
+{
+//Serial.println(item);
+  set_refer_output(menu_refer_value[item+5]); 
+  menu_move_back();
+  ui_mode_normal();
+  draw_cal_status();
+}
+
+static void menu_spur_cb(int item)
+{
+  SetSpur(item); 
+  menu_move_back();
+  ui_mode_normal();
+  draw_cal_status();
+}
+
+static void menu_storage_cb(int item)
+{
+  switch(item) {
+    case 0:
+      SetStorage();
+      break;
+    case 1:
+      SetClearStorage();
+      break;
+    case 2:
+      SetSubtractStorage();
+      break;
+  }
+  menu_move_back();
+  ui_mode_normal();
+  draw_cal_status();
+}
+
+static void menu_average_cb(int item)
+{
+  SetAverage(item); 
   menu_move_back();
   ui_mode_normal();
   draw_cal_status();
@@ -889,6 +1013,13 @@ static void menu_rbw_cb(int item)
   draw_cal_status();
 }
 
+static void menu_dBper_cb(int item)
+{
+  SetPowerGrid(menu_dBper_value[item]); 
+  menu_move_back();
+  ui_mode_normal();
+  draw_cal_status();
+}
 
 
 static void choose_active_trace(void)
@@ -1025,10 +1156,10 @@ static void menu_transform_cb(int item)
     case 5:
       status = btn_wait_release();
       if (status & EVT_BUTTON_DOWN_LONG) {
-        ui_mode_numeric(KM_OFFSET);
+        ui_mode_numeric(KM_ACTUALPOWER);
 //        ui_process_numeric();
       } else {
-        ui_mode_keypad(KM_OFFSET);
+        ui_mode_keypad(KM_ACTUALPOWER);
         ui_process_keypad();
       }
       break;
@@ -1053,6 +1184,20 @@ static void menu_scale_cb(int item)
 //  if (km == KM_SCALE && trace[uistat.current_trace].type == TRC_DELAY) {
 //    km = KM_SCALEDELAY;
 //  }
+  status = btn_wait_release();
+  if (status & EVT_BUTTON_DOWN_LONG) {
+    ui_mode_numeric(km);
+//    ui_process_numeric();
+  } else {
+    ui_mode_keypad(km);
+    ui_process_keypad();
+  }
+}
+
+static void menu_actualpower_cb(int item)
+{
+  int status;
+  int km = KM_ACTUALPOWER;
   status = btn_wait_release();
   if (status & EVT_BUTTON_DOWN_LONG) {
     ui_mode_numeric(km);
@@ -1387,12 +1532,12 @@ static const keypads_t * const keypads_mode_tbl[] = {
   keypads_scale, // scale
   keypads_level, // refpos
   keypads_scale, // attenuation
-  keypads_level, // power offset
+  keypads_level, // power level
   keypads_time // scale of delay
 };
 
 static const char * const keypad_mode_label[] = {
-  "START", "STOP", "CENTER", "SPAN", "CW FREQ", "SCALE", "REFPOS", "ATTEN", "OFFSET", "DELAY"
+  "START", "STOP", "CENTER", "SPAN", "CW FREQ", "SCALE", "REFPOS", "ATTEN", "POWER", "DELAY"
 };
 
 static void draw_keypad(void)
@@ -1538,8 +1683,8 @@ Serial.println("----------------------------");
     
     menu_item_modify_attribute(menu, i, &fg, &bg);
     if (menu_is_multiline(menu[i].label, &l1, &l2)) {
-      ili9341_drawstring_5x7(l1, 320-54, y+8, fg, bg);
-      ili9341_drawstring_5x7(l2, 320-54, y+15, fg, bg);
+      ili9341_drawstring_5x7(l1, 320-54, y+6, fg, bg);
+      ili9341_drawstring_5x7(l2, 320-54, y+17, fg, bg);
     } else {
       ili9341_drawstring_5x7(menu[i].label, 320-54, y+12, fg, bg);
     }
@@ -1614,7 +1759,7 @@ static void erase_menu_buttons(void)
   #else
    ili9341_fill(320-72, 0, 72, 32*7, bg);
 #endif
-
+  MenuDirty();
 }
 
 static void erase_numeric_input(void)
@@ -1664,7 +1809,7 @@ static void fetch_numeric_target(void)
   case KM_ATTENUATION:
 //    uistat.value = get_electrical_delay();
     break;
-  case KM_OFFSET:
+  case KM_ACTUALPOWER:
 //    uistat.value = velocity_factor;
     break;
   case KM_SCALEDELAY:
@@ -1710,7 +1855,7 @@ static void set_numeric_value(void)
   case KM_ATTENUATION:
     set_electrical_delay(uistat.value);
     break;
-  case KM_OFFSET:
+  case KM_ACTUALPOWER:
     velocity_factor = uistat.value;
     break;
   }
@@ -1928,8 +2073,8 @@ static int keypad_click(int key)
     case KM_ATTENUATION:
       SetAttenuation(value);
       break;
-    case KM_OFFSET:
-      SetLevelOffset(value);
+    case KM_ACTUALPOWER:
+      SetPowerLevel(value);
       break;
     case KM_SCALEDELAY:
 //      set_trace_scale(uistat.current_trace, value * 1e-12); // pico second

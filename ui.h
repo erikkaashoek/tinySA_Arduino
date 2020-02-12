@@ -15,9 +15,22 @@ void SetPowerGrid(int);
 void SetRefLevel(int);
 void set_refer_output(int);
 void SetAttenuation(int);
-void SetLevelOffset(int);
+void SetPowerLevel(int);
+void SetGenerate(int);
 void SetRX(int);
 void SetRBW(int);
+void SetSpur(int);
+void SetAverage(int);
+void  SetStorage(void);
+void  SetClearStorage(void);
+void  SetSubtractStorage(void);
+void AllDirty(void);
+void MenuDirty(void);
+void redrawHisto(void);
+
+enum {
+  AV_OFF, AV_MIN, AV_MAX, AV_2, AV_4, AV_8
+};
 
 enum {
   UI_NORMAL, UI_MENU, UI_NUMERIC, UI_KEYPAD

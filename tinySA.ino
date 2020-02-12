@@ -1796,8 +1796,8 @@ void loop()
     }
     DrawCheckerBoard(autoSweepStep);
 // Debug AGC
-    SI4432_Sel = 0;
-     myStorage[autoSweepStep] = (SI4432_Read_Byte(0x69) & 0x01F) * 4;
+//    SI4432_Sel = 0;
+//     myStorage[autoSweepStep] = (SI4432_Read_Byte(0x69) & 0x01F) * 4;
 // end debug
     if (settingShowStorage)
       DisplayPoint(myStorage, autoSweepStep, DISPLAY_BLUE);

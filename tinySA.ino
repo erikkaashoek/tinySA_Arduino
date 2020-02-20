@@ -1885,12 +1885,12 @@ void loop()
       old_micros = micros();
       if (extraVFO>=0) {
         setFreq(extraVFO,modfreq-offset);
-        lastFreq[extraVFO] = modfreq-offset;
+       lastFreq[extraVFO] = modfreq-offset;
       } 
-      if (extraVFO2>=0) {
-        setFreq(extraVFO2,modfreq-offset2);
-        lastFreq[extraVFO2] = modfreq-offset2;
-      } 
+//      if (extraVFO2>=0) {
+//        setFreq(extraVFO2,modfreq-offset2);
+//        lastFreq[extraVFO2] = modfreq-offset2;
+//      } 
       setFreq (VFO, modfreq);
       lastFreq[VFO] = freq;
       if (i>0) {
@@ -1928,7 +1928,7 @@ void loop()
 //    displayHisto();
     serialFlushIf(0);
     Serial.println("}");
-    standalone = true;
+ //   standalone = true;
   }
 
   if(inData == 'S' || inData == 's')
@@ -2066,17 +2066,17 @@ void loop()
   }
   if(inData == 'E' || inData == 'e')
   {
-    if(Serial.available()) {
      extraVFO = Serial.parseInt();
-     Serial.print("Extra VFO: ");
-     Serial.println(extraVFO);
      if (extraVFO>=0) {
         offset = Serial.parseInt();
-        Serial.print("Offset: ");
+        Serial.print("E=");
+        Serial.print(extraVFO);
+        Serial.print(", o= ");
         Serial.println(offset);
+#if 0
         if(Serial.available()) {
           extraVFO2 = Serial.parseInt();
-          Serial.print("Extra VFO2: ");
+          Serial.print("E=");
           Serial.println(extraVFO2);
           if (extraVFO2>=0) {
               offset2 = Serial.parseInt();
@@ -2084,16 +2084,15 @@ void loop()
               Serial.println(offset2);
           }
         }
-        else
-        {
-          extraVFO2 = -1;
-        }
+      else
+      {
+        extraVFO2 = -1;
+      }
+#endif      
+     } else {
+       Serial.print("E=");
+       Serial.println(extraVFO);
      }
-    } 
-    else{ 
-      extraVFO=-1;
-      extraVFO2=-1;
-    }
    inData = 0;
   }
 
@@ -2140,7 +2139,6 @@ void loop()
   }
   if(inData == 'P' || inData == 'p')
   {
-    if(Serial.available()) {
      parameter = Serial.parseInt();
      if(Serial.available()) {
           lastParameter[parameter] = Serial.parseInt();
@@ -2184,10 +2182,6 @@ void loop()
      Serial.print(" = ");
      Serial.println(lastParameter[parameter]);
 
-    } 
-    else{ 
-      parameter=-1;
-    }
    inData = 0;
   }
 

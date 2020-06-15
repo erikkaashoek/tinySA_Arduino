@@ -21,14 +21,11 @@
  */
 
 #include <Arduino.h>
-#include <SPI.h>
-#include <Wire.h>
 
 
-
-//#if defined(ARDUINO_ARCH_SAMD) 
+#if defined(ARDUINO_ARCH_SAMD) 
 #define  Serial SerialUSB
-//#endif
+#endif
 
 // Comment out below line if you do not want a local user interface
 #define USE_DISPLAY 1
@@ -41,9 +38,16 @@
 #include "./Si446x.h" 
 #endif
 
+// The onboard led is blinked during serial transfer
+#define tinySA_led 13
+
+#ifdef USE_DISPLAY
+
+#include <SPI.h>
 
 //------------------------------------------ Display ------------------------------------
 #ifdef USE_SSD1306
+#include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
@@ -96,8 +100,6 @@ ILI9488 tft = ILI9488(TFT_CS, TFT_DC, TFT_RST);
 
 #endif
 
-// The onboard led is blinked during serial transfer
-#define tinySA_led 13
 
 #ifndef DISPLAY_POINTS
 #define DISPLAY_POINTS 100
@@ -270,6 +272,7 @@ void DrawDirty(int x,int y)
 
 #include "ui.h"
 
+#endif
 ///-------------------------------------------------------- SI4432 start ----------------------------------------------
 
 // PINS SI4432, you can change these to any pin you want
@@ -694,7 +697,7 @@ void SI4432_Set_Frequency ( long Freq ) {
   SI4432_Write_Byte ( 0x75, Freq_Band );
   SI4432_Write_Byte ( 0x76, (Carrier>>8) & 0xFF );
   SI4432_Write_Byte ( 0x77, Carrier & 0xFF  );
-  delay(2);
+//  delay(2);
 }  
 
 int SI4432_RSSI()
@@ -921,6 +924,7 @@ int dataIndex = 0;
 
 
 //--------------------- Frequency control -----------------------
+#ifdef USE_DISPLAY
 
 int dirty = true;
 
@@ -1092,7 +1096,7 @@ uint32_t get_sweep_frequency(int type)
   return 0;
 }
 
-
+#endif
 
 #ifdef USE_ROTARY
 
@@ -1175,15 +1179,25 @@ static long old_time;
     //Serial.println(v[dataIndex]);
   }
 }
+
 #endif
+
+
+
+
+
 //---------------- data -----------------------
 
 
+#ifdef USE_DISPLAY
 unsigned char myData[DISPLAY_POINTS+1]; 
 unsigned char myStorage[DISPLAY_POINTS+1]; 
 unsigned char myActual[DISPLAY_POINTS+1]; 
 
 //---------------- menu system -----------------------
+
+#include "ui_sa.c"
+
 
 int settingMax = -10; //9 drids vertical
 int settingMin = -100;
@@ -1278,7 +1292,7 @@ void SetAverage(int v)
   dirty = true;
 }
 
-
+#endif
 //------------------------------------------
 
 
@@ -1288,6 +1302,9 @@ int debug = 0;
 #define DebugLine(X) { if (debug) Serial.println(X); }
 #define Debug(X) { if (debug) Serial.print(X); }
 
+#ifndef DISPLAY_POINTS
+#define DISPLAY_POINTS  100
+#endif
 
 int inData = 0;
 long steps = DISPLAY_POINTS;
@@ -1437,9 +1454,11 @@ void displayHisto ()
   // Dsiplay frequencies
 // Bottom of screen
   tft.fillRect(0, tft.height()-8, tft.width(), tft.height()-1, DISPLAY_BLACK);
-    tft.setTextColor(DISPLAY_WHITE);        // Draw white text
-  tft.setCursor(oX+2,tft.height()-8);             // Start at top-left corner
-  double f = (((double)(startFreq - lastFreq[0]))/ 1000000.0);
+  tft.setTextColor(DISPLAY_WHITE);        // Draw white text
+  tft.setCursor(oX+2,tft.height()-8);
+  double f;
+  if (frequency1 > 0) {
+  f = (((double)(startFreq - lastFreq[0]))/ 1000000.0);
   tft.print(f);
   tft.print("MHz");
   tft.setCursor(tft.width() - 58,tft.height()-8);
@@ -1447,12 +1466,18 @@ void displayHisto ()
   tft.print(f);
   tft.print("MHz");
 
-  tft.setCursor(tft.width()/2 - 80 + oX,tft.height()-8);
+  } else {
   tft.print("center:");
   f = (double)((stopFreq/2 + startFreq/2 - lastFreq[0]) / 1000000.0);
   tft.print(f);
   tft.print("MHz");
-  old_startFreq = startFreq;
+  tft.setCursor(tft.width()/2 + oX,tft.height()-8);
+  tft.print("span:");
+  f = (double)((stopFreq - startFreq) / 1000000.0);
+  tft.print(f);
+  tft.print("MHz");
+  }
+old_startFreq = startFreq;
   old_stopFreq = stopFreq;
   }
 
@@ -1481,7 +1506,10 @@ void displayHisto ()
   tft.print("kHz");
   tft.setCursor(56,8);             // Start at top-left corner
   tft.print("VBW:");
-  tft.print(vbw);
+  if (vbw==0) {
+    tft.print("<1");
+  } else
+    tft.print(vbw);
   tft.print("kHz");
   old_ownrbw = ownrbw;
   old_vbw = vbw;
@@ -1587,11 +1615,13 @@ void DisplayPeakData(void)
 
 void setup() 
 {
+#ifdef USE_DISPLAY
 
   config.touch_cal[0] = 3841;
   config.touch_cal[1] = 3710;
   config.touch_cal[2] = -168;
   config.touch_cal[3] = -228;
+#endif
 
   Serial.begin(115200); // 115200
 #if defined(ARDUINO_ARCH_SAMD)
@@ -1599,7 +1629,7 @@ void setup()
 #endif
 //return;
 #if defined(ARDUINO_ARCH_SAMD) 
-  Wire.setClock(800000);
+//  Wire.setClock(800000);
 #endif
 
 //SPISettings(12000000, MSBFIRST, SPI_MODE0)
@@ -1610,7 +1640,7 @@ void setup()
   Serial.println("Init done");
 
   info();
-
+#ifdef USE_DISPLAY
 #ifdef USE_SSD1306
   if(!tft.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     Serial.println(F("SSD1306 allocation failed"));
@@ -1628,6 +1658,7 @@ clearDisplay();
   // the library initializes this with an Adafruit splash screen.
 //  sendDisplay();
 //  displayHisto();
+#endif
   PE4302_init();
   PE4302_Write_Byte(0);
 #ifdef USE_SI4463
@@ -1735,12 +1766,12 @@ void loop()
   ili9341_drawstring_size("01234567891123456789", 0,12, 0xffff, 0x0000, 2);
   return;
 */
+#ifdef USE_DISPLAY
   ui_process_touch();
   if (ui_mode != UI_NORMAL) {
     autoSweepStep = 0;
     return;
   }
-
   if (standalone) {
 //    Serial.print("AutoSweepStep: ");
 //    Serial.println(autoSweepStep);
@@ -1839,13 +1870,12 @@ void loop()
         dirty = false;
       autoSweepStep = 0;
       settingSpur = -settingSpur;
-#if USE_DISPLAY
+
       displayHisto();
-#endif
     }  
    }
 
-
+#endif
 //--------------------------------  
   inData = 0;
 
@@ -1899,10 +1929,11 @@ void loop()
         serialBuff[serialIndex++] = ((byte) (sensor>>8));
     serialFlushIf(0); ///TEMP -----------------------------------------------
 
-        if (i < 128){
+#if 0 // Debugging
+        if (i < DISPLAY_POINTS){
           myData[i] = sensor;
         }
-      
+#endif      
       }
 #if 1
       while (micros() - old_micros < (delaytime * 100L)*2/3 ) {
@@ -2121,7 +2152,9 @@ void loop()
   {
     if(Serial.available()) {
       bandwidth = Serial.parseFloat();
+#ifdef USE_DISPLAY      
       settingBandwidth = (int)bandwidth;
+#endif      
       Serial.print("Width: ");
       Serial.println(spacing);
     } else 
@@ -2169,8 +2202,10 @@ void loop()
 //        ADF4351_level(lastParameter[4]);
 //        ADF4351_Set(VFO);
       } else if (parameter == 5) {
+#ifdef USE_DISPLAY
         settingAttenuate = lastParameter[5];
-        int p = - settingAttenuate * 2;
+#endif
+        int p = - lastParameter[5] * 2;
         PE4302_Write_Byte(p);
       } else if (parameter == 6) {
         RX = lastParameter[6];
